@@ -2,13 +2,12 @@ USE GD1C2025
 GO
 
 ----- ELIMINACION DE TABLAS -----
--- Primero eliminamos las tablas que son referenciadas por otras (tablas hijas)
 IF OBJECT_ID('JOIN_FORCES.detalle_factura', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.detalle_factura
-IF OBJECT_ID('JOIN_FORCES.factura', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.factura
 IF OBJECT_ID('JOIN_FORCES.envio', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.envio
+IF OBJECT_ID('JOIN_FORCES.factura', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.factura
 IF OBJECT_ID('JOIN_FORCES.cancelacion_pedido', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.cancelacion_pedido
 IF OBJECT_ID('JOIN_FORCES.detalle_pedido', 'U') IS NOT NULL
@@ -25,14 +24,6 @@ IF OBJECT_ID('JOIN_FORCES.sillon', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.sillon
 IF OBJECT_ID('JOIN_FORCES.modelo_medida', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.modelo_medida
-
--- Luego eliminamos las tablas que son referenciadas pero no referencian a otras
-IF OBJECT_ID('JOIN_FORCES.direccion', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.direccion
-IF OBJECT_ID('JOIN_FORCES.localidad', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.localidad
-IF OBJECT_ID('JOIN_FORCES.provincia', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.provincia
 IF OBJECT_ID('JOIN_FORCES.tela', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.tela
 IF OBJECT_ID('JOIN_FORCES.madera', 'U') IS NOT NULL
@@ -45,6 +36,12 @@ IF OBJECT_ID('JOIN_FORCES.modelo', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.modelo
 IF OBJECT_ID('JOIN_FORCES.material', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.material
+IF OBJECT_ID('JOIN_FORCES.direccion', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.direccion
+IF OBJECT_ID('JOIN_FORCES.localidad', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.localidad
+IF OBJECT_ID('JOIN_FORCES.provincia', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.provincia
 IF OBJECT_ID('JOIN_FORCES.estado', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.estado
 IF OBJECT_ID('JOIN_FORCES.proveedor', 'U') IS NOT NULL
@@ -76,6 +73,28 @@ IF OBJECT_ID('JOIN_FORCES.migrar_compra', 'P') IS NOT NULL
     DROP PROCEDURE JOIN_FORCES.migrar_compra
 IF OBJECT_ID('JOIN_FORCES.migrar_pedido', 'P') IS NOT NULL
     DROP PROCEDURE JOIN_FORCES.migrar_pedido
+IF OBJECT_ID('JOIN_FORCES.migrar_modelo', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_modelo
+IF OBJECT_ID('JOIN_FORCES.migrar_medida', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_medida
+IF OBJECT_ID('JOIN_FORCES.migrar_modelo_medida', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_modelo_medida
+IF OBJECT_ID('JOIN_FORCES.migrar_sillon', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_sillon
+IF OBJECT_ID('JOIN_FORCES.migrar_sillon_material', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_sillon_material
+IF OBJECT_ID('JOIN_FORCES.migrar_compra_detalle', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_compra_detalle
+IF OBJECT_ID('JOIN_FORCES.migrar_detalle_pedido', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_detalle_pedido
+IF OBJECT_ID('JOIN_FORCES.migrar_cancelacion_pedido', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_cancelacion_pedido
+IF OBJECT_ID('JOIN_FORCES.migrar_factura', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_factura
+IF OBJECT_ID('JOIN_FORCES.migrar_detalle_factura', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_detalle_factura
+IF OBJECT_ID('JOIN_FORCES.migrar_envio', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_envio
 GO
 
 ----- ELIMINACION DE ESQUEMA -----
@@ -698,9 +717,13 @@ BEGIN
         AND m.Sucursal_telefono = s.sucursal_telefono
         AND m.Sucursal_mail = s.sucursal_email
     WHERE Factura_Numero IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM JOIN_FORCES.factura f WHERE f.numero = Factura_Numero
-      );
+        AND Pedido_Numero IS NOT NULL
+        AND Cliente_Dni IS NOT NULL
+        AND Factura_Fecha IS NOT NULL
+        AND Factura_Total IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM JOIN_FORCES.factura f WHERE f.numero = Factura_Numero
+        );
 END
 GO
 
@@ -710,7 +733,7 @@ BEGIN
     SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.detalle_factura (factura_numero, detalle_pedido_id, cantidad, precio_unitario, subtotal)
     SELECT DISTINCT
-        f.Factura_Numero,
+        f.numero,
         dp.id,
         m.Detalle_Factura_Cantidad,
         m.Detalle_Factura_Precio,
@@ -728,22 +751,27 @@ BEGIN
     SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.envio (numero, factura_id, importe_traslado, importe_subida, fecha_programada, fecha, total)
     SELECT DISTINCT
-        Envio_Numero,
-        Factura_Numero,
-        Envio_ImporteTraslado,
-        Envio_ImporteSubida,
-        Envio_Fecha_Programada,
-        Envio_Fecha,
-        Envio_Total
-    FROM gd_esquema.Maestra
-    WHERE Envio_Numero IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM JOIN_FORCES.envio e WHERE e.numero = Envio_Numero
-      );
+        m.Envio_Numero,
+        m.Factura_Numero,
+        m.Envio_ImporteTraslado,
+        m.Envio_ImporteSubida,
+        m.Envio_Fecha_Programada,
+        m.Envio_Fecha,
+        m.Envio_Total
+    FROM gd_esquema.Maestra m
+    JOIN JOIN_FORCES.factura f ON f.numero = m.Factura_Numero
+    WHERE m.Envio_Numero IS NOT NULL
+        AND m.Factura_Numero IS NOT NULL
+        AND m.Envio_ImporteTraslado IS NOT NULL
+        AND m.Envio_ImporteSubida IS NOT NULL
+        AND m.Envio_Fecha_Programada IS NOT NULL
+        AND m.Envio_Fecha IS NOT NULL
+        AND m.Envio_Total IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM JOIN_FORCES.envio e WHERE e.numero = m.Envio_Numero
+        );
 END
 GO
-
-/*************************** FIN TAMIR 29/5/25****************************************************/
 
 ---- PROCEDURE UNIFICADO ----
 
@@ -759,8 +787,6 @@ BEGIN
     EXEC JOIN_FORCES.migrar_proveedor
     EXEC JOIN_FORCES.migrar_compra
     EXEC JOIN_FORCES.migrar_pedido
-
-	-- TAMIR 29/5/25 Agrego SP faltantes
     EXEC JOIN_FORCES.migrar_modelo;
     EXEC JOIN_FORCES.migrar_medida;
     EXEC JOIN_FORCES.migrar_modelo_medida;
