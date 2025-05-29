@@ -95,6 +95,14 @@ IF OBJECT_ID('JOIN_FORCES.migrar_detalle_factura', 'P') IS NOT NULL
     DROP PROCEDURE JOIN_FORCES.migrar_detalle_factura
 IF OBJECT_ID('JOIN_FORCES.migrar_envio', 'P') IS NOT NULL
     DROP PROCEDURE JOIN_FORCES.migrar_envio
+IF OBJECT_ID('JOIN_FORCES.migrar_material', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_material
+IF OBJECT_ID('JOIN_FORCES.migrar_madera', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_madera
+IF OBJECT_ID('JOIN_FORCES.migrar_relleno', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_relleno
+IF OBJECT_ID('JOIN_FORCES.migrar_tela', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_tela
 GO
 
 ----- ELIMINACION DE ESQUEMA -----
@@ -773,6 +781,73 @@ BEGIN
 END
 GO
 
+CREATE PROCEDURE JOIN_FORCES.migrar_material
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.pedido (id, tipo, nombre, descripcion, precio_unitario)
+    SELECT DISTINCT
+        m.Material_id,
+        m.Material_tipo,
+        m.Material_nombre, 
+        m.Material_descripcion,
+        m.Materia_precio_unitario
+    FROM gd_esquema.Maestra m
+    WHERE m.Material_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.material mat WHERE mat.id = m.Material_id);
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_madera
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.pedido (id, material_id, color, dureza)
+    SELECT DISTINCT
+        m.Madera_id,
+        mat.id,
+        m.Madera.color, 
+        m.Madera_dureza
+    FROM gd_esquema.Maestra m
+	INNER JOIN JOIN_FORCES.material MAT ON m.material_id = MAT.id
+    WHERE m.Material_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.madera mad WHERE mad.id = m.Madera_id);
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_relleno
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.pedido (id, material_id, densidad)
+    SELECT DISTINCT
+        m.Relleno_id,
+        mat.id,
+        m.Relleno.densidad
+    FROM gd_esquema.Maestra m
+	INNER JOIN JOIN_FORCES.material MAT ON m.material_id = MAT.id
+    WHERE m.Material_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.relleno rel WHERE rel.id = m.Relleno_id);
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_tela
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.pedido (id, material_id, color, textura)
+    SELECT DISTINCT
+        m.Tela_id,
+        mat.id,
+        m.Tela.color, 
+        m.Tela_textura
+    FROM gd_esquema.Maestra m
+	INNER JOIN JOIN_FORCES.material MAT ON m.material_id = MAT.id
+    WHERE m.Material_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.tela tel WHERE tel.id = m.Tela_id);
+END
+GO
+
 ---- PROCEDURE UNIFICADO ----
 
 CREATE PROCEDURE JOIN_FORCES.migrar_datos
@@ -798,6 +873,10 @@ BEGIN
     EXEC JOIN_FORCES.migrar_factura;
     EXEC JOIN_FORCES.migrar_detalle_factura;
     EXEC JOIN_FORCES.migrar_envio;
+	EXEC JOIN_FORCES.migrar_material
+    EXEC JOIN_FORCES.migrar_madera
+    EXEC JOIN_FORCES.migrar_relleno
+    EXEC JOIN_FORCES.migrar_tela
 END
 GO
 
