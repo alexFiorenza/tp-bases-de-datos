@@ -785,16 +785,24 @@ CREATE PROCEDURE JOIN_FORCES.migrar_material
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO JOIN_FORCES.material (id, tipo, nombre, descripcion, precio_unitario)
+    INSERT INTO JOIN_FORCES.material (tipo, nombre, descripcion, precio_unitario)
     SELECT DISTINCT
-        m.Material_id,
         m.Material_tipo,
         m.Material_nombre, 
         m.Material_descripcion,
-        m.Material_precio_unitario
+        m.Material_Precio
     FROM gd_esquema.Maestra m
-    WHERE m.Material_id IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.material mat WHERE mat.id = m.Material_id);
+    WHERE m.Material_Tipo IS NOT NULL
+      AND m.Material_Nombre IS NOT NULL
+      AND m.Material_Descripcion IS NOT NULL
+      AND m.Material_Precio IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.material mat
+        WHERE mat.tipo = m.Material_Tipo
+          AND mat.nombre = m.Material_Nombre
+          AND mat.descripcion = m.Material_Descripcion
+          AND mat.precio_unitario = m.Material_Precio
+      );
 END
 GO
 
@@ -802,16 +810,21 @@ CREATE PROCEDURE JOIN_FORCES.migrar_madera
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO JOIN_FORCES.madera (id, material_id, color, dureza)
+    INSERT INTO JOIN_FORCES.madera (material_id, color, dureza)
     SELECT DISTINCT
-        m.Madera_id,
         mat.id,
-        m.Madera_color, 
-        m.Madera_dureza
+        m.Madera_Color, 
+        m.Madera_Dureza
     FROM gd_esquema.Maestra m
-	INNER JOIN JOIN_FORCES.material MAT ON m.material_id = MAT.id
-    WHERE m.Madera_id IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.madera mad WHERE mad.id = m.Madera_id);
+    INNER JOIN JOIN_FORCES.material mat ON m.Material_Nombre = mat.nombre
+    WHERE m.Madera_Color IS NOT NULL
+      AND m.Madera_Dureza IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.madera mad
+        WHERE mad.material_id = mat.id
+          AND mad.color = m.Madera_Color
+          AND mad.dureza = m.Madera_Dureza
+      );
 END
 GO
 
@@ -819,15 +832,18 @@ CREATE PROCEDURE JOIN_FORCES.migrar_relleno
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO JOIN_FORCES.relleno (id, material_id, densidad)
+    INSERT INTO JOIN_FORCES.relleno (material_id, densidad)
     SELECT DISTINCT
-        m.Relleno_id,
         mat.id,
-        m.Relleno_densidad
+        m.Relleno_Densidad
     FROM gd_esquema.Maestra m
-	INNER JOIN JOIN_FORCES.material MAT ON m.material_id = MAT.id
-    WHERE m.Relleno_id IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.relleno rel WHERE rel.id = m.Relleno_id);
+    INNER JOIN JOIN_FORCES.material mat ON m.Material_Nombre = mat.nombre
+    WHERE m.Relleno_Densidad IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.relleno rel
+        WHERE rel.material_id = mat.id
+          AND rel.densidad = m.Relleno_Densidad
+      );
 END
 GO
 
@@ -835,16 +851,21 @@ CREATE PROCEDURE JOIN_FORCES.migrar_tela
 AS
 BEGIN
     SET NOCOUNT ON;
-    INSERT INTO JOIN_FORCES.tela (id, material_id, color, textura)
+    INSERT INTO JOIN_FORCES.tela (material_id, color, textura)
     SELECT DISTINCT
-        m.Tela_id,
         mat.id,
-        m.Tela_color, 
-        m.Tela_textura
+        m.Tela_Color,
+        m.Tela_Textura
     FROM gd_esquema.Maestra m
-	INNER JOIN JOIN_FORCES.material MAT ON m.material_id = MAT.id
-    WHERE m.Tela_id IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.tela tel WHERE tel.id = m.Tela_id);
+    INNER JOIN JOIN_FORCES.material mat ON m.Material_Nombre = mat.nombre
+    WHERE m.Tela_Color IS NOT NULL
+      AND m.Tela_Textura IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.tela tel
+        WHERE tel.material_id = mat.id
+          AND tel.color = m.Tela_Color
+          AND tel.textura = m.Tela_Textura
+      );
 END
 GO
 
