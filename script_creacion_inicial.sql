@@ -2,13 +2,12 @@ USE GD1C2025
 GO
 
 ----- ELIMINACION DE TABLAS -----
--- Primero eliminamos las tablas que son referenciadas por otras (tablas hijas)
 IF OBJECT_ID('JOIN_FORCES.detalle_factura', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.detalle_factura
-IF OBJECT_ID('JOIN_FORCES.factura', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.factura
 IF OBJECT_ID('JOIN_FORCES.envio', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.envio
+IF OBJECT_ID('JOIN_FORCES.factura', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.factura
 IF OBJECT_ID('JOIN_FORCES.cancelacion_pedido', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.cancelacion_pedido
 IF OBJECT_ID('JOIN_FORCES.detalle_pedido', 'U') IS NOT NULL
@@ -25,14 +24,6 @@ IF OBJECT_ID('JOIN_FORCES.sillon', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.sillon
 IF OBJECT_ID('JOIN_FORCES.modelo_medida', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.modelo_medida
-
--- Luego eliminamos las tablas que son referenciadas pero no referencian a otras
-IF OBJECT_ID('JOIN_FORCES.direccion', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.direccion
-IF OBJECT_ID('JOIN_FORCES.localidad', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.localidad
-IF OBJECT_ID('JOIN_FORCES.provincia', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.provincia
 IF OBJECT_ID('JOIN_FORCES.tela', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.tela
 IF OBJECT_ID('JOIN_FORCES.madera', 'U') IS NOT NULL
@@ -45,6 +36,12 @@ IF OBJECT_ID('JOIN_FORCES.modelo', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.modelo
 IF OBJECT_ID('JOIN_FORCES.material', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.material
+IF OBJECT_ID('JOIN_FORCES.direccion', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.direccion
+IF OBJECT_ID('JOIN_FORCES.localidad', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.localidad
+IF OBJECT_ID('JOIN_FORCES.provincia', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.provincia
 IF OBJECT_ID('JOIN_FORCES.estado', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.estado
 IF OBJECT_ID('JOIN_FORCES.proveedor', 'U') IS NOT NULL
@@ -76,6 +73,28 @@ IF OBJECT_ID('JOIN_FORCES.migrar_compra', 'P') IS NOT NULL
     DROP PROCEDURE JOIN_FORCES.migrar_compra
 IF OBJECT_ID('JOIN_FORCES.migrar_pedido', 'P') IS NOT NULL
     DROP PROCEDURE JOIN_FORCES.migrar_pedido
+IF OBJECT_ID('JOIN_FORCES.migrar_modelo', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_modelo
+IF OBJECT_ID('JOIN_FORCES.migrar_medida', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_medida
+IF OBJECT_ID('JOIN_FORCES.migrar_modelo_medida', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_modelo_medida
+IF OBJECT_ID('JOIN_FORCES.migrar_sillon', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_sillon
+IF OBJECT_ID('JOIN_FORCES.migrar_sillon_material', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_sillon_material
+IF OBJECT_ID('JOIN_FORCES.migrar_compra_detalle', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_compra_detalle
+IF OBJECT_ID('JOIN_FORCES.migrar_detalle_pedido', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_detalle_pedido
+IF OBJECT_ID('JOIN_FORCES.migrar_cancelacion_pedido', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_cancelacion_pedido
+IF OBJECT_ID('JOIN_FORCES.migrar_factura', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_factura
+IF OBJECT_ID('JOIN_FORCES.migrar_detalle_factura', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_detalle_factura
+IF OBJECT_ID('JOIN_FORCES.migrar_envio', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_envio
 GO
 
 ----- ELIMINACION DE ESQUEMA -----
@@ -516,6 +535,244 @@ BEGIN
 END
 GO
 
+
+/**************************** TAMIR 29/5/25 *******************************************/
+
+CREATE PROCEDURE JOIN_FORCES.migrar_modelo
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.modelo (modelo_codigo, nombre, descripcion, precio)
+    SELECT DISTINCT
+        Sillon_Modelo_Codigo,
+        Sillon_Modelo,
+        Sillon_Modelo_Descripcion,
+        Sillon_Modelo_Precio
+    FROM gd_esquema.Maestra
+    WHERE Sillon_Modelo_Codigo IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.modelo mo WHERE mo.modelo_codigo = Sillon_Modelo_Codigo
+      );
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_medida
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.medida (altura, ancho, profundidad, precio)
+    SELECT DISTINCT
+        Sillon_Medida_Alto,
+        Sillon_Medida_Ancho,
+        Sillon_Medida_Profundidad,
+        Sillon_Medida_Precio
+    FROM gd_esquema.Maestra
+    WHERE Sillon_Medida_Alto IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.medida me
+        WHERE me.altura = Sillon_Medida_Alto
+          AND me.ancho = Sillon_Medida_Ancho
+          AND me.profundidad = Sillon_Medida_Profundidad
+          AND me.precio = Sillon_Medida_Precio
+      );
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_modelo_medida
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.modelo_medida (modelo_codigo, medida_id)
+    SELECT DISTINCT
+        mo.modelo_codigo,
+        me.id
+    FROM gd_esquema.Maestra m
+    JOIN JOIN_FORCES.modelo mo ON mo.modelo_codigo = m.Sillon_Modelo_Codigo
+    JOIN JOIN_FORCES.medida me ON me.altura = m.Sillon_Medida_Alto
+        AND me.ancho = m.Sillon_Medida_Ancho
+        AND me.profundidad = m.Sillon_Medida_Profundidad
+        AND me.precio = m.Sillon_Medida_Precio
+    WHERE NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.modelo_medida mm
+        WHERE mm.modelo_codigo = mo.modelo_codigo AND mm.medida_id = me.id
+    );
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_sillon
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.sillon (codigo, modelo_codigo)
+    SELECT DISTINCT
+        Sillon_Codigo,
+        Sillon_Modelo_Codigo
+    FROM gd_esquema.Maestra
+    WHERE Sillon_Codigo IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.sillon s WHERE s.codigo = Sillon_Codigo
+      );
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_sillon_material
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.sillon_material (sillon_codigo, material_id, cantidad)
+    SELECT DISTINCT
+        m.Sillon_Codigo,
+        mat.id,
+        1
+    FROM gd_esquema.Maestra m
+    JOIN JOIN_FORCES.material mat ON mat.nombre = m.Material_Nombre
+        AND mat.tipo = m.Material_Tipo
+        AND mat.descripcion = m.Material_Descripcion
+        AND mat.precio_unitario = m.Material_Precio
+    WHERE m.Sillon_Codigo IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.sillon_material sm
+        WHERE sm.sillon_codigo = m.Sillon_Codigo AND sm.material_id = mat.id
+      );
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_compra_detalle
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.compra_detalle (compra_numero, material_id, subtotal, precio_unitario, cantidad)
+    SELECT DISTINCT
+        m.Compra_Numero,
+        mat.id,
+        m.Detalle_Compra_SubTotal,
+        m.Detalle_Compra_Precio,
+        m.Detalle_Compra_Cantidad
+    FROM gd_esquema.Maestra m
+    JOIN JOIN_FORCES.material mat ON mat.nombre = m.Material_Nombre
+        AND mat.tipo = m.Material_Tipo
+        AND mat.descripcion = m.Material_Descripcion
+        AND mat.precio_unitario = m.Material_Precio
+    WHERE m.Compra_Numero IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.compra_detalle cd
+        WHERE cd.compra_numero = m.Compra_Numero AND cd.material_id = mat.id
+      );
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_detalle_pedido
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.detalle_pedido (sillon_codigo, pedido_numero, cantidad, precio_unitario, subtotal)
+    SELECT DISTINCT
+        Sillon_Codigo,
+        Pedido_Numero,
+        Detalle_Pedido_Cantidad,
+        Detalle_Pedido_Precio,
+        Detalle_Pedido_SubTotal
+    FROM gd_esquema.Maestra
+    WHERE Pedido_Numero IS NOT NULL
+      AND Sillon_Codigo IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.detalle_pedido dp
+        WHERE dp.pedido_numero = Pedido_Numero AND dp.sillon_codigo = Sillon_Codigo
+      );
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_cancelacion_pedido
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.cancelacion_pedido (pedido_numero, fecha, motivo)
+    SELECT DISTINCT
+        Pedido_Numero,
+        Pedido_Cancelacion_Fecha,
+        Pedido_Cancelacion_Motivo
+    FROM gd_esquema.Maestra
+    WHERE Pedido_Cancelacion_Fecha IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.cancelacion_pedido cp
+        WHERE cp.pedido_numero = Pedido_Numero
+      );
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_factura
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.factura (numero, sucursal_id, pedido_numero, cliente_dni, fecha, total)
+    SELECT DISTINCT
+        Factura_Numero,
+        s.id,
+        Pedido_Numero,
+        Cliente_Dni,
+        Factura_Fecha,
+        Factura_Total
+    FROM gd_esquema.Maestra m
+    JOIN JOIN_FORCES.sucursal s ON m.Sucursal_Direccion = s.sucursal_direccion
+        AND m.Sucursal_telefono = s.sucursal_telefono
+        AND m.Sucursal_mail = s.sucursal_email
+    WHERE Factura_Numero IS NOT NULL
+        AND Pedido_Numero IS NOT NULL
+        AND Cliente_Dni IS NOT NULL
+        AND Factura_Fecha IS NOT NULL
+        AND Factura_Total IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM JOIN_FORCES.factura f WHERE f.numero = Factura_Numero
+        );
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_detalle_factura
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.detalle_factura (factura_numero, detalle_pedido_id, cantidad, precio_unitario, subtotal)
+    SELECT DISTINCT
+        f.numero,
+        dp.id,
+        m.Detalle_Factura_Cantidad,
+        m.Detalle_Factura_Precio,
+        m.Detalle_Factura_SubTotal
+    FROM gd_esquema.Maestra m
+    JOIN JOIN_FORCES.factura f ON f.numero = m.Factura_Numero
+    JOIN JOIN_FORCES.detalle_pedido dp ON dp.pedido_numero = m.Pedido_Numero AND dp.sillon_codigo = m.Sillon_Codigo
+    WHERE m.Factura_Numero IS NOT NULL;
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_envio
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.envio (numero, factura_id, importe_traslado, importe_subida, fecha_programada, fecha, total)
+    SELECT DISTINCT
+        m.Envio_Numero,
+        m.Factura_Numero,
+        m.Envio_ImporteTraslado,
+        m.Envio_ImporteSubida,
+        m.Envio_Fecha_Programada,
+        m.Envio_Fecha,
+        m.Envio_Total
+    FROM gd_esquema.Maestra m
+    JOIN JOIN_FORCES.factura f ON f.numero = m.Factura_Numero
+    WHERE m.Envio_Numero IS NOT NULL
+        AND m.Factura_Numero IS NOT NULL
+        AND m.Envio_ImporteTraslado IS NOT NULL
+        AND m.Envio_ImporteSubida IS NOT NULL
+        AND m.Envio_Fecha_Programada IS NOT NULL
+        AND m.Envio_Fecha IS NOT NULL
+        AND m.Envio_Total IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1 FROM JOIN_FORCES.envio e WHERE e.numero = m.Envio_Numero
+        );
+END
+GO
+
 ---- PROCEDURE UNIFICADO ----
 
 CREATE PROCEDURE JOIN_FORCES.migrar_datos
@@ -530,8 +787,20 @@ BEGIN
     EXEC JOIN_FORCES.migrar_proveedor
     EXEC JOIN_FORCES.migrar_compra
     EXEC JOIN_FORCES.migrar_pedido
+    EXEC JOIN_FORCES.migrar_modelo;
+    EXEC JOIN_FORCES.migrar_medida;
+    EXEC JOIN_FORCES.migrar_modelo_medida;
+    EXEC JOIN_FORCES.migrar_sillon;
+    EXEC JOIN_FORCES.migrar_sillon_material;
+    EXEC JOIN_FORCES.migrar_compra_detalle;
+    EXEC JOIN_FORCES.migrar_detalle_pedido;
+    EXEC JOIN_FORCES.migrar_cancelacion_pedido;
+    EXEC JOIN_FORCES.migrar_factura;
+    EXEC JOIN_FORCES.migrar_detalle_factura;
+    EXEC JOIN_FORCES.migrar_envio;
 END
 GO
 
 EXEC JOIN_FORCES.migrar_datos
 GO
+
