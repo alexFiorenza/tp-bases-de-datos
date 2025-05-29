@@ -308,6 +308,59 @@ BEGIN
 END
 GO
 
+CREATE PROCEDURE JOIN_FORCES.migrar_direccion
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO JOIN_FORCES.direccion (nombre, localidad_id)
+    SELECT DISTINCT
+        m.Cliente_Direccion,
+        l.id
+    FROM gd_esquema.Maestra AS m
+    INNER JOIN JOIN_FORCES.provincia AS prov ON m.Cliente_Provincia = prov.nombre
+    INNER JOIN JOIN_FORCES.localidad AS l ON m.Cliente_Localidad = l.nombre AND l.provincia_id = prov.id
+    WHERE m.Cliente_Direccion IS NOT NULL 
+      AND m.Cliente_Localidad IS NOT NULL 
+      AND m.Cliente_Provincia IS NOT NULL
+      AND NOT EXISTS ( -- Para evitar duplicados si se corre multiples veces y ya existen
+        SELECT 1 FROM JOIN_FORCES.direccion d_exist
+        WHERE d_exist.nombre = m.Cliente_Direccion AND d_exist.localidad_id = l.id
+      )
+
+    UNION
+
+    SELECT DISTINCT
+        m.Sucursal_Direccion,
+        l.id
+    FROM gd_esquema.Maestra AS m
+    INNER JOIN JOIN_FORCES.provincia AS prov ON m.Sucursal_Provincia = prov.nombre
+    INNER JOIN JOIN_FORCES.localidad AS l ON m.Sucursal_Localidad = l.nombre AND l.provincia_id = prov.id
+    WHERE m.Sucursal_Direccion IS NOT NULL
+      AND m.Sucursal_Localidad IS NOT NULL
+      AND m.Sucursal_Provincia IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.direccion d_exist
+        WHERE d_exist.nombre = m.Sucursal_Direccion AND d_exist.localidad_id = l.id
+      )
+
+    UNION
+
+    SELECT DISTINCT
+        m.Proveedor_Direccion,
+        l.id
+    FROM gd_esquema.Maestra AS m
+    INNER JOIN JOIN_FORCES.provincia AS prov ON m.Proveedor_Provincia = prov.nombre
+    INNER JOIN JOIN_FORCES.localidad AS l ON m.Proveedor_Localidad = l.nombre AND l.provincia_id = prov.id
+    WHERE m.Proveedor_Direccion IS NOT NULL
+      AND m.Proveedor_Localidad IS NOT NULL
+      AND m.Proveedor_Provincia IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM JOIN_FORCES.direccion d_exist
+        WHERE d_exist.nombre = m.Proveedor_Direccion AND d_exist.localidad_id = l.id
+      );
+END
+GO
 
 ---- PROCEDURE UNIFICADO ----
 
@@ -316,6 +369,7 @@ AS
 BEGIN
     EXEC JOIN_FORCES.migrar_provincia
     EXEC JOIN_FORCES.migrar_localidad
+    EXEC JOIN_FORCES.migrar_direccion
 END
 GO
 
