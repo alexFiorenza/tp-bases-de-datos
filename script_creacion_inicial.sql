@@ -791,7 +791,7 @@ BEGIN
         m.Material_tipo,
         m.Material_nombre, 
         m.Material_descripcion,
-        m.Materia_precio_unitario
+        m.Material_precio_unitario
     FROM gd_esquema.Maestra m
     WHERE m.Material_id IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.material mat WHERE mat.id = m.Material_id);
@@ -806,7 +806,7 @@ BEGIN
     SELECT DISTINCT
         m.Madera_id,
         mat.id,
-        m.Madera.color, 
+        m.Madera_color, 
         m.Madera_dureza
     FROM gd_esquema.Maestra m
 	INNER JOIN JOIN_FORCES.material MAT ON m.material_id = MAT.id
@@ -823,7 +823,7 @@ BEGIN
     SELECT DISTINCT
         m.Relleno_id,
         mat.id,
-        m.Relleno.densidad
+        m.Relleno_densidad
     FROM gd_esquema.Maestra m
 	INNER JOIN JOIN_FORCES.material MAT ON m.material_id = MAT.id
     WHERE m.Material_id IS NOT NULL
@@ -839,7 +839,7 @@ BEGIN
     SELECT DISTINCT
         m.Tela_id,
         mat.id,
-        m.Tela.color, 
+        m.Tela_color, 
         m.Tela_textura
     FROM gd_esquema.Maestra m
 	INNER JOIN JOIN_FORCES.material MAT ON m.material_id = MAT.id
