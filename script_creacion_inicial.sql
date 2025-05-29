@@ -873,10 +873,10 @@ BEGIN
     EXEC JOIN_FORCES.migrar_factura;
     EXEC JOIN_FORCES.migrar_detalle_factura;
     EXEC JOIN_FORCES.migrar_envio;
-	EXEC JOIN_FORCES.migrar_material
-    EXEC JOIN_FORCES.migrar_madera
-    EXEC JOIN_FORCES.migrar_relleno
-    EXEC JOIN_FORCES.migrar_tela
+	EXEC JOIN_FORCES.migrar_material;
+    EXEC JOIN_FORCES.migrar_madera;
+    EXEC JOIN_FORCES.migrar_relleno;
+    EXEC JOIN_FORCES.migrar_tela;
 END
 GO
 
