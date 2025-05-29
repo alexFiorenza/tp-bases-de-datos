@@ -287,7 +287,7 @@ CREATE PROCEDURE JOIN_FORCES.migrar_localidad
 AS
 BEGIN
     INSERT INTO JOIN_FORCES.localidad (nombre, provincia_id)
-    SELECT DISTINCT p.id, m.Cliente_Localidad 
+    SELECT DISTINCT  m.Cliente_Localidad , p.id
     FROM gd_esquema.Maestra AS m
     JOIN JOIN_FORCES.provincia AS p ON m.Cliente_Provincia = p.nombre
     WHERE m.Cliente_Localidad IS NOT NULL
@@ -323,7 +323,7 @@ BEGIN
     WHERE m.Cliente_Direccion IS NOT NULL 
       AND m.Cliente_Localidad IS NOT NULL 
       AND m.Cliente_Provincia IS NOT NULL
-      AND NOT EXISTS ( -- Para evitar duplicados si se corre multiples veces y ya existen
+      AND NOT EXISTS ( 
         SELECT 1 FROM JOIN_FORCES.direccion d_exist
         WHERE d_exist.nombre = m.Cliente_Direccion AND d_exist.localidad_id = l.id
       )
@@ -362,6 +362,117 @@ BEGIN
 END
 GO
 
+CREATE PROCEDURE JOIN_FORCES.migrar_estado
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.estado (nombre)
+    SELECT DISTINCT m.Pedido_Estado
+    FROM gd_esquema.Maestra m
+    WHERE m.Pedido_Estado IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.estado e WHERE e.nombre = m.Pedido_Estado);
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_sucursal
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.sucursal (sucursal_direccion, sucursal_telefono, sucursal_email)
+    SELECT DISTINCT
+        m.Sucursal_Direccion,
+        m.Sucursal_telefono,
+        m.Sucursal_mail
+    FROM gd_esquema.Maestra m
+    WHERE m.Sucursal_Direccion IS NOT NULL
+      AND m.Sucursal_telefono IS NOT NULL
+      AND m.Sucursal_mail IS NOT NULL
+      AND NOT EXISTS (
+          SELECT 1 FROM JOIN_FORCES.sucursal s
+          WHERE s.sucursal_direccion = m.Sucursal_Direccion
+            AND s.sucursal_telefono = m.Sucursal_telefono
+            AND s.sucursal_email = m.Sucursal_mail
+      );
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_cliente
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.cliente (dni, nombre, email, telefono, fecha_nacimiento)
+    SELECT DISTINCT
+        m.Cliente_Dni,
+        TRIM(ISNULL(m.Cliente_Nombre, N'') + N' ' + ISNULL(m.Cliente_Apellido, N'')),
+        m.Cliente_Mail,
+        m.Cliente_Telefono,
+        m.Cliente_FechaNacimiento
+    FROM gd_esquema.Maestra m
+    WHERE m.Cliente_Dni IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.cliente c WHERE c.dni = m.Cliente_Dni);
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_proveedor
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.proveedor (cuit, razon_social, direccion, telefono, email)
+    SELECT DISTINCT
+        m.Proveedor_Cuit,
+        m.Proveedor_RazonSocial,
+        m.Proveedor_Direccion, 
+        m.Proveedor_Telefono,
+        m.Proveedor_Mail
+    FROM gd_esquema.Maestra m
+    WHERE m.Proveedor_Cuit IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.proveedor p WHERE p.cuit = m.Proveedor_Cuit);
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_compra
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.compra (numero, proveedor_cuit, sucursal_id, fecha, total)
+    SELECT DISTINCT
+        m.Compra_Numero,
+        m.Proveedor_Cuit,
+        s.id, 
+        m.Compra_Fecha,
+        m.Compra_Total
+    FROM gd_esquema.Maestra m
+    INNER JOIN JOIN_FORCES.proveedor prov ON m.Proveedor_Cuit = prov.cuit
+    INNER JOIN JOIN_FORCES.sucursal s ON m.Sucursal_Direccion = s.sucursal_direccion
+        AND m.Sucursal_telefono = s.sucursal_telefono
+        AND m.Sucursal_mail = s.sucursal_email
+    WHERE m.Compra_Numero IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.compra comp WHERE comp.numero = m.Compra_Numero);
+END
+GO
+
+CREATE PROCEDURE JOIN_FORCES.migrar_pedido
+AS
+BEGIN
+    SET NOCOUNT ON;
+    INSERT INTO JOIN_FORCES.pedido (numero, sucursal_id, cliente_dni, estado_id, pedido_fecha)
+    SELECT DISTINCT
+        m.Pedido_Numero,
+        s.id,
+        c.dni, 
+        est.id,
+        m.Pedido_Fecha
+    FROM gd_esquema.Maestra m
+    INNER JOIN JOIN_FORCES.cliente c ON m.Cliente_Dni = c.dni
+    INNER JOIN JOIN_FORCES.estado est ON m.Pedido_Estado = est.nombre
+    INNER JOIN JOIN_FORCES.sucursal s ON m.Sucursal_Direccion = s.sucursal_direccion
+        AND m.Sucursal_telefono = s.sucursal_telefono
+        AND m.Sucursal_mail = s.sucursal_email
+    WHERE m.Pedido_Numero IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.pedido p WHERE p.numero = m.Pedido_Numero);
+END
+GO
+
 ---- PROCEDURE UNIFICADO ----
 
 CREATE PROCEDURE JOIN_FORCES.migrar_datos
@@ -370,6 +481,12 @@ BEGIN
     EXEC JOIN_FORCES.migrar_provincia
     EXEC JOIN_FORCES.migrar_localidad
     EXEC JOIN_FORCES.migrar_direccion
+    EXEC JOIN_FORCES.migrar_estado
+    EXEC JOIN_FORCES.migrar_sucursal
+    EXEC JOIN_FORCES.migrar_cliente
+    EXEC JOIN_FORCES.migrar_proveedor
+    EXEC JOIN_FORCES.migrar_compra
+    EXEC JOIN_FORCES.migrar_pedido
 END
 GO
 
