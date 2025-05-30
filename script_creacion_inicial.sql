@@ -360,8 +360,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_direccion
 AS
 BEGIN
-    SET NOCOUNT ON;
-
     INSERT INTO JOIN_FORCES.direccion (nombre, localidad_id)
     SELECT DISTINCT
         m.Cliente_Direccion,
@@ -414,7 +412,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_estado
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.estado (nombre)
     SELECT DISTINCT m.Pedido_Estado
     FROM gd_esquema.Maestra m
@@ -426,7 +423,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_sucursal
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.sucursal (sucursal_direccion, sucursal_telefono, sucursal_email)
     SELECT DISTINCT
         m.Sucursal_Direccion,
@@ -448,7 +444,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_cliente
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.cliente (dni, nombre, email, telefono, fecha_nacimiento)
     SELECT DISTINCT
         m.Cliente_Dni,
@@ -465,7 +460,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_proveedor
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.proveedor (cuit, razon_social, direccion, telefono, email)
     SELECT DISTINCT
         m.Proveedor_Cuit,
@@ -482,7 +476,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_compra
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.compra (numero, proveedor_cuit, sucursal_id, fecha, total)
     SELECT DISTINCT
         m.Compra_Numero,
@@ -503,7 +496,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_pedido
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.pedido (numero, sucursal_id, cliente_dni, estado_id, pedido_fecha)
     SELECT DISTINCT
         m.Pedido_Numero,
@@ -525,7 +517,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_modelo
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.modelo (modelo_codigo, nombre, descripcion, precio)
     SELECT DISTINCT
         Sillon_Modelo_Codigo,
@@ -543,7 +534,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_medida
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.medida (altura, ancho, profundidad, precio)
     SELECT DISTINCT
         Sillon_Medida_Alto,
@@ -565,7 +555,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_modelo_medida
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.modelo_medida (modelo_codigo, medida_id)
     SELECT DISTINCT
         mo.modelo_codigo,
@@ -586,7 +575,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_sillon
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.sillon (codigo, modelo_codigo)
     SELECT DISTINCT
         Sillon_Codigo,
@@ -602,7 +590,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_sillon_material
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.sillon_material (sillon_codigo, material_id, cantidad)
     SELECT DISTINCT
         m.Sillon_Codigo,
@@ -623,8 +610,7 @@ GO
 
 CREATE PROCEDURE JOIN_FORCES.migrar_compra_detalle
 AS
-BEGIN
-    SET NOCOUNT ON;
+BEGIN           
     INSERT INTO JOIN_FORCES.compra_detalle (compra_numero, material_id, subtotal, precio_unitario, cantidad)
     SELECT DISTINCT
         m.Compra_Numero,
@@ -648,7 +634,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_detalle_pedido
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.detalle_pedido (sillon_codigo, pedido_numero, cantidad, precio_unitario, subtotal)
     SELECT DISTINCT
         Sillon_Codigo,
@@ -669,7 +654,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_cancelacion_pedido
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.cancelacion_pedido (pedido_numero, fecha, motivo)
     SELECT DISTINCT
         Pedido_Numero,
@@ -687,7 +671,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_factura
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.factura (numero, sucursal_id, pedido_numero, cliente_dni, fecha, total)
     SELECT DISTINCT
         Factura_Numero,
@@ -714,7 +697,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_detalle_factura
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.detalle_factura (factura_numero, detalle_pedido_id, cantidad, precio_unitario, subtotal)
     SELECT DISTINCT
         f.numero,
@@ -732,7 +714,6 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_envio
 AS
 BEGIN
-    SET NOCOUNT ON;
     INSERT INTO JOIN_FORCES.envio (numero, factura_id, importe_traslado, importe_subida, fecha_programada, fecha, total)
     SELECT DISTINCT
         m.Envio_Numero,
@@ -757,10 +738,10 @@ BEGIN
 END
 GO
 
+
 CREATE PROCEDURE JOIN_FORCES.migrar_tipo_material
 AS
 BEGIN
-    SET NOCOUNT ON;
 
     INSERT INTO
         JOIN_FORCES.tipo_material (nombre)
