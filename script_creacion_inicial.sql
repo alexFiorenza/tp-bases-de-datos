@@ -610,7 +610,7 @@ BEGIN
         1
     FROM gd_esquema.Maestra m
     JOIN JOIN_FORCES.material mat ON mat.nombre = m.Material_Nombre
-        AND mat.tipo = m.Material_Tipo
+        AND mat.tipo_material_id = (SELECT id FROM JOIN_FORCES.tipo_material WHERE nombre = m.Material_Tipo)
         AND mat.descripcion = m.Material_Descripcion
         AND mat.precio_unitario = m.Material_Precio
     WHERE m.Sillon_Codigo IS NOT NULL
@@ -634,7 +634,7 @@ BEGIN
         m.Detalle_Compra_Cantidad
     FROM gd_esquema.Maestra m
     JOIN JOIN_FORCES.material mat ON mat.nombre = m.Material_Nombre
-        AND mat.tipo = m.Material_Tipo
+        AND mat.tipo_material_id = (SELECT id FROM JOIN_FORCES.tipo_material WHERE nombre = m.Material_Tipo)
         AND mat.descripcion = m.Material_Descripcion
         AND mat.precio_unitario = m.Material_Precio
     WHERE m.Compra_Numero IS NOT NULL
