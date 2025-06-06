@@ -278,9 +278,9 @@ CREATE TABLE JOIN_FORCES.detalle_factura(
     id INT PRIMARY KEY IDENTITY(1,1) NOT NULL,
     factura_numero BIGINT NOT NULL,
     detalle_pedido_id INT NOT NULL,
-    cantidad INT NOT NULL,
-    precio_unitario DECIMAL(18,2) NOT NULL,
-    subtotal DECIMAL(18,2) NOT NULL,
+    cantidad INT NULL,
+    precio_unitario DECIMAL(18,2)  NULL,
+    subtotal DECIMAL(18,2)  NULL,
     FOREIGN KEY (factura_numero) REFERENCES JOIN_FORCES.factura(numero),
     FOREIGN KEY (detalle_pedido_id) REFERENCES JOIN_FORCES.detalle_pedido(id)
 )
@@ -697,17 +697,29 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_detalle_factura
 AS
 BEGIN
-    INSERT INTO JOIN_FORCES.detalle_factura (factura_numero, detalle_pedido_id, cantidad, precio_unitario, subtotal)
-    SELECT DISTINCT
-        f.numero,
-        dp.id,
-        m.Detalle_Factura_Cantidad,
-        m.Detalle_Factura_Precio,
-        m.Detalle_Factura_SubTotal
-    FROM gd_esquema.Maestra m
-    JOIN JOIN_FORCES.factura f ON f.numero = m.Factura_Numero
-    JOIN JOIN_FORCES.detalle_pedido dp ON dp.pedido_numero = m.Pedido_Numero AND dp.sillon_codigo = m.Sillon_Codigo
-    WHERE m.Factura_Numero IS NOT NULL;
+    ;WITH FacturaPedido AS (
+        SELECT DISTINCT
+            m.Factura_Numero,
+            m.Pedido_Numero,
+            m.Detalle_Factura_Cantidad    AS cantidad,
+            m.Detalle_Factura_Precio      AS precio_unitario,
+            m.Detalle_Factura_SubTotal    AS subtotal
+        FROM gd_esquema.Maestra AS m
+        WHERE m.Factura_Numero IS NOT NULL
+          AND m.Pedido_Numero  IS NOT NULL
+    )
+
+    INSERT INTO JOIN_FORCES.detalle_factura
+        (factura_numero, detalle_pedido_id, cantidad, precio_unitario, subtotal)
+    SELECT
+        fp.Factura_Numero,
+        dp.id                  AS detalle_pedido_id,
+        fp.cantidad,
+        fp.precio_unitario,
+        fp.subtotal
+    FROM FacturaPedido AS fp
+    INNER JOIN JOIN_FORCES.detalle_pedido AS dp
+        ON dp.pedido_numero = fp.Pedido_Numero
 END
 GO
 
@@ -822,6 +834,8 @@ BEGIN
     EXEC JOIN_FORCES.migrar_sucursal
     EXEC JOIN_FORCES.migrar_cliente
     EXEC JOIN_FORCES.migrar_proveedor
+    EXEC JOIN_FORCES.migrar_tipo_material
+    EXEC JOIN_FORCES.migrar_material
     EXEC JOIN_FORCES.migrar_compra
     EXEC JOIN_FORCES.migrar_pedido
     EXEC JOIN_FORCES.migrar_modelo;
@@ -835,8 +849,6 @@ BEGIN
     EXEC JOIN_FORCES.migrar_factura;
     EXEC JOIN_FORCES.migrar_detalle_factura;
     EXEC JOIN_FORCES.migrar_envio;
-	EXEC JOIN_FORCES.migrar_tipo_material;
-    EXEC JOIN_FORCES.migrar_material;
 END
 GO
 
