@@ -292,7 +292,6 @@ BEGIN
     FROM JOIN_FORCES.pedido pedido
     INNER JOIN JOIN_FORCES.detalle_pedido AS detalle_pedido ON pedido.numero = detalle_pedido.pedido_numero
     INNER JOIN JOIN_FORCES.sillon sillon ON sillon.codigo = detalle_pedido.sillon_codigo
-    INNER JOIN JOIN_FORCES.modelo m ON m.modelo_codigo = sillon.modelo_codigo
     INNER JOIN JOIN_FORCES.sucursal s ON s.id = pedido.sucursal_id
     INNER JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
     INNER JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
@@ -301,6 +300,7 @@ BEGIN
     INNER JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
     INNER JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(pedido.pedido_fecha) = t.tiempo_anio AND MONTH(pedido.pedido_fecha) = t.tiempo_mes
     INNER JOIN JOIN_FORCES.BI_DIM_RANGO_ETARIO re ON DATEDIFF(YEAR, c.fecha_nacimiento, GETDATE()) BETWEEN re.rango_edad_minima AND re.rango_edad_maxima
+    INNER JOIN JOIN_FORCES.BI_DIM_MODELO m ON m.modelo_codigo = sillon.modelo_codigo
     GROUP BY m.modelo_codigo, t.tiempo_id, s.id, re.rango_id, ubi.ubicacion_id
 END;
 GO
@@ -415,7 +415,6 @@ JOIN JOIN_FORCES.BI_HECHO_COMPRAS AS c ON f.sucursal_id = c.sucursal_id AND f.ti
 JOIN JOIN_FORCES.BI_DIM_TIEMPO AS t ON f.tiempo_id = t.tiempo_id 
 GROUP BY  t.tiempo_mes, c.sucursal_id -- POR CADA MES, POR CADA SUCURSAL
 GO
-
 
 EXEC JOIN_FORCES.migrar_bi
 GO
