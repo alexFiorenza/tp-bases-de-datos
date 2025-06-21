@@ -3,7 +3,7 @@ GO
 --- DROP DE TABLAS ---
 
 IF OBJECT_ID('JOIN_FORCES.BI_HECHO_FACTURACION', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_FACTURACION;
-IF OBJECT_ID('JOIN_FORCES.BI_HECHO_VENTAS_MODELO', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_VENTAS_MODELO;
+IF OBJECT_ID('JOIN_FORCES.BI_HECHO_VENTAS', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_VENTAS;
 IF OBJECT_ID('JOIN_FORCES.BI_HECHO_PEDIDOS', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_PEDIDOS;
 IF OBJECT_ID('JOIN_FORCES.BI_HECHO_COMPRAS', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_COMPRAS;
 IF OBJECT_ID('JOIN_FORCES.BI_HECHO_ENVIOS', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_ENVIOS;
@@ -30,6 +30,7 @@ IF OBJECT_ID('JOIN_FORCES.migrar_dim_modelo', 'P') IS NOT NULL DROP PROCEDURE JO
 IF OBJECT_ID('JOIN_FORCES.migrar_dim_rango_etario', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_dim_rango_etario;
 IF OBJECT_ID('JOIN_FORCES.migrar_hecho_facturacion', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_hecho_facturacion;
 IF OBJECT_ID('JOIN_FORCES.migrar_hecho_pedidos', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_hecho_pedidos;
+IF OBJECT_ID('JOIN_FORCES.migrar_hecho_ventas', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_hecho_ventas;
 IF OBJECT_ID('JOIN_FORCES.migrar_hecho_compras', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_hecho_compras;
 IF OBJECT_ID('JOIN_FORCES.migrar_hecho_envios', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_hecho_envios;
 IF OBJECT_ID('JOIN_FORCES.migrar_bi', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_bi;
@@ -98,7 +99,7 @@ CREATE TABLE JOIN_FORCES.BI_HECHO_FACTURACION(
     PRIMARY KEY (tiempo_id, sucursal_id, ubicacion_id)
 )
 
-CREATE TABLE JOIN_FORCES.BI_HECHO_VENTAS_MODELO(
+CREATE TABLE JOIN_FORCES.BI_HECHO_VENTAS(
     modelo NVARCHAR(255),
     valor_ventas decimal(18,2),
     cantidad_ventas DECIMAL(18,2),
@@ -249,6 +250,31 @@ BEGIN
 END;
 GO
 
+
+CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_ventas
+AS
+BEGIN
+    INSERT INTO JOIN_FORCES.BI_HECHO_VENTAS (
+        modelo, valor_ventas, cantidad_ventas, tiempo_id, sucursal_id, rango_etario_id, ubicacion_id
+    )
+    SELECT DISTINCT m.nombre, SUM(detalle_pedido.subtotal), COUNT(*), t.tiempo_id, s.id, re.rango_id, ubi.ubicacion_id
+    FROM JOIN_FORCES.pedido pedido
+    JOIN JOIN_FORCES.detalle_pedido AS detalle_pedido ON pedido.numero = detalle_pedido.pedido_numero
+    JOIN JOIN_FORCES.sillon sillon ON sillon.codigo = detalle_pedido.sillon_codigo
+    JOIN JOIN_FORCES.modelo m ON m.modelo_codigo = sillon.modelo_codigo
+    JOIN JOIN_FORCES.sucursal s ON s.id = pedido.sucursal_id
+    JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
+    JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
+    JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
+    JOIN JOIN_FORCES.cliente c ON c.dni = pedido.cliente_dni
+    JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
+    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(pedido.pedido_fecha) = t.tiempo_anio AND MONTH(pedido.pedido_fecha) = t.tiempo_mes
+    JOIN JOIN_FORCES.BI_DIM_RANGO_ETARIO re ON DATEDIFF(YEAR, c.fecha_nacimiento, GETDATE()) BETWEEN re.rango_edad_minima AND re.rango_edad_maxima
+    GROUP BY m.nombre, t.tiempo_id, s.id, re.rango_id, ubi.ubicacion_id
+END;
+GO
+
+
 CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_pedidos
 AS
 BEGIN
@@ -338,6 +364,7 @@ BEGIN
     EXEC JOIN_FORCES.migrar_dim_rango_etario
     EXEC JOIN_FORCES.migrar_hecho_facturacion
     EXEC JOIN_FORCES.migrar_hecho_pedidos
+    EXEC JOIN_FORCES.migrar_hecho_ventas
     EXEC JOIN_FORCES.migrar_hecho_compras
     EXEC JOIN_FORCES.migrar_hecho_envios
 END;
