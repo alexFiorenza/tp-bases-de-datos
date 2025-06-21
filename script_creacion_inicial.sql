@@ -16,6 +16,8 @@ IF OBJECT_ID('JOIN_FORCES.detalle_pedido', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.detalle_pedido
 IF OBJECT_ID('JOIN_FORCES.pedido', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.pedido
+IF OBJECT_ID('JOIN_FORCES.cliente', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.cliente
 IF OBJECT_ID('JOIN_FORCES.compra_detalle', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.compra_detalle
 IF OBJECT_ID('JOIN_FORCES.compra', 'U') IS NOT NULL
@@ -26,28 +28,26 @@ IF OBJECT_ID('JOIN_FORCES.sillon', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.sillon
 IF OBJECT_ID('JOIN_FORCES.modelo_medida', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.modelo_medida
-IF OBJECT_ID('JOIN_FORCES.medida', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.medida
-IF OBJECT_ID('JOIN_FORCES.modelo', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.modelo
-IF OBJECT_ID('JOIN_FORCES.material', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.material
-IF OBJECT_ID('JOIN_FORCES.tipo_material', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.tipo_material
+IF OBJECT_ID('JOIN_FORCES.sucursal', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.sucursal
 IF OBJECT_ID('JOIN_FORCES.direccion', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.direccion
 IF OBJECT_ID('JOIN_FORCES.localidad', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.localidad
-IF OBJECT_ID('JOIN_FORCES.provincia', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.provincia
+IF OBJECT_ID('JOIN_FORCES.material', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.material
+IF OBJECT_ID('JOIN_FORCES.tipo_material', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.tipo_material
+IF OBJECT_ID('JOIN_FORCES.medida', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.medida
+IF OBJECT_ID('JOIN_FORCES.modelo', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.modelo
 IF OBJECT_ID('JOIN_FORCES.estado', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.estado
 IF OBJECT_ID('JOIN_FORCES.proveedor', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.proveedor
-IF OBJECT_ID('JOIN_FORCES.sucursal', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.sucursal
-IF OBJECT_ID('JOIN_FORCES.cliente', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.cliente
+IF OBJECT_ID('JOIN_FORCES.provincia', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.provincia
 GO
 
 ----- ELIMINACION DE PROCEDURES -----
@@ -229,7 +229,9 @@ CREATE TABLE JOIN_FORCES.cliente(
     nombre NVARCHAR(255) NOT NULL,
     email NVARCHAR(255) NOT NULL,
     telefono NVARCHAR(255) NOT NULL,
-    fecha_nacimiento DATETIME NOT NULL
+    fecha_nacimiento DATETIME NOT NULL,
+    direccion_id INT NOT NULL,
+    FOREIGN KEY (direccion_id) REFERENCES JOIN_FORCES.direccion(id)
 )
 
 CREATE TABLE JOIN_FORCES.pedido(
@@ -444,14 +446,18 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_cliente
 AS
 BEGIN
-    INSERT INTO JOIN_FORCES.cliente (dni, nombre, email, telefono, fecha_nacimiento)
+    INSERT INTO JOIN_FORCES.cliente (dni, nombre, email, telefono, fecha_nacimiento, direccion_id)
     SELECT DISTINCT
         m.Cliente_Dni,
         TRIM(ISNULL(m.Cliente_Nombre, N'') + N' ' + ISNULL(m.Cliente_Apellido, N'')),
         m.Cliente_Mail,
         m.Cliente_Telefono,
-        m.Cliente_FechaNacimiento
+        m.Cliente_FechaNacimiento,
+        d.id
     FROM gd_esquema.Maestra m
+    INNER JOIN JOIN_FORCES.provincia AS prov ON m.Cliente_Provincia = prov.nombre
+    INNER JOIN JOIN_FORCES.localidad AS l ON m.Cliente_Localidad = l.nombre AND l.provincia_id = prov.id
+    INNER JOIN JOIN_FORCES.direccion AS d ON m.Cliente_Direccion = d.nombre AND d.localidad_id = l.id
     WHERE m.Cliente_Dni IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.cliente c WHERE c.dni = m.Cliente_Dni);
 END

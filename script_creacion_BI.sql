@@ -146,22 +146,44 @@ GO
 CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_dim_tiempo
 AS
 BEGIN
-    INSERT INTO JOIN_FORCES.BI_DIM_TIEMPO (tiempo_anio, tiempo_mes, tiempo_cuatrimestre)
-    SELECT DISTINCT YEAR(f.fecha), MONTH(f.fecha), ((MONTH(f.fecha)-1)/4)+1
-    FROM (
-        SELECT fecha_nacimiento AS fecha FROM JOIN_FORCES.cliente
-        UNION ALL SELECT fecha    AS fecha FROM JOIN_FORCES.compra
-        UNION ALL SELECT pedido_fecha AS fecha FROM JOIN_FORCES.pedido
-        UNION ALL SELECT fecha    AS fecha FROM JOIN_FORCES.factura
-        UNION ALL SELECT fecha    AS fecha FROM JOIN_FORCES.envio
-        UNION ALL SELECT fecha_programada AS fecha FROM JOIN_FORCES.envio
-    ) f
-    WHERE NOT EXISTS (
-        SELECT 1 FROM JOIN_FORCES.BI_DIM_TIEMPO t
-         WHERE t.tiempo_anio = YEAR(f.fecha)
-           AND t.tiempo_mes  = MONTH(f.fecha)
-           AND t.tiempo_cuatrimestre = ((MONTH(f.fecha)-1)/4)+1
-    );
+    INSERT INTO JOIN_FORCES.BI_DIM_TIEMPO (tiempo_anio,tiempo_mes,tiempo_cuatrimestre )
+    (
+        SELECT DISTINCT 
+        YEAR(f.fecha) AS tiempo_anio, 
+        MONTH(f.fecha) AS tiempo_mes, 
+        DATEPART(QUARTER, f.fecha) AS tiempo_cuatrimestre
+        FROM JOIN_FORCES.factura AS f
+        UNION
+        SELECT DISTINCT 
+        YEAR(c.fecha) AS tiempo_anio, 
+        MONTH(c.fecha) AS tiempo_mes, 
+        DATEPART(QUARTER, c.fecha) AS tiempo_cuatrimestre
+        FROM JOIN_FORCES.compra AS c
+        UNION
+        SELECT DISTINCT 
+        YEAR(p.pedido_fecha) AS tiempo_anio, 
+        MONTH(p.pedido_fecha) AS tiempo_mes, 
+        DATEPART(QUARTER, p.pedido_fecha) AS tiempo_cuatrimestre
+        FROM JOIN_FORCES.pedido AS p
+        UNION
+        SELECT DISTINCT 
+        YEAR(e.fecha) AS tiempo_anio, 
+        MONTH(e.fecha) AS tiempo_mes, 
+        DATEPART(QUARTER, e.fecha) AS tiempo_cuatrimestre
+        FROM JOIN_FORCES.envio AS e
+        UNION
+        SELECT DISTINCT
+        YEAR(e.fecha_programada) AS tiempo_anio, 
+        MONTH(e.fecha_programada) AS tiempo_mes, 
+        DATEPART(QUARTER, e.fecha_programada) AS tiempo_cuatrimestre
+        FROM JOIN_FORCES.envio AS e
+        UNION
+        SELECT DISTINCT
+        YEAR(c.fecha_nacimiento) AS tiempo_anio, 
+        MONTH(c.fecha_nacimiento) AS tiempo_mes, 
+        DATEPART(QUARTER, c.fecha_nacimiento) AS tiempo_cuatrimestre
+        FROM JOIN_FORCES.cliente AS c
+    )
 END;
 GO
 
@@ -170,7 +192,6 @@ AS
 BEGIN
     INSERT INTO JOIN_FORCES.BI_DIM_SUCURSAL (sucursal_id, sucursal_email)
     SELECT id, sucursal_email FROM JOIN_FORCES.sucursal s
-    WHERE NOT EXISTS (SELECT 1 FROM JOIN_FORCES.BI_DIM_SUCURSAL b WHERE b.sucursal_id = s.id);
 END;
 GO
 
@@ -178,13 +199,23 @@ CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_dim_ubicacion
 AS
 BEGIN
     INSERT INTO JOIN_FORCES.BI_DIM_UBICACION (ubicacion_provincia, ubicacion_localidad)
-    SELECT p.nombre, l.nombre
-    FROM JOIN_FORCES.localidad l
-    JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
-    WHERE NOT EXISTS (
-        SELECT 1 FROM JOIN_FORCES.BI_DIM_UBICACION b
-         WHERE b.ubicacion_provincia = p.nombre AND b.ubicacion_localidad = l.nombre
-    );
+    (
+        SELECT DISTINCT 
+        p.nombre,
+        l.nombre
+        FROM JOIN_FORCES.cliente c
+            JOIN JOIN_FORCES.direccion d ON c.direccion_id = d.id
+            JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
+            JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
+        UNION
+        SELECT DISTINCT 
+        p.nombre,
+        l.nombre
+        FROM JOIN_FORCES.sucursal s
+            JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
+            JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
+            JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
+    )
 END;
 GO
 
@@ -310,7 +341,7 @@ CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_compras
 AS
 BEGIN
     INSERT INTO JOIN_FORCES.BI_HECHO_COMPRAS (tiempo_id, sucursal_id, tipo_mat_id, ubicacion_id, subtotal, cantidad)
-    SELECT DISTINCT t.tiempo_id, s.id, tm.tipo_mat_id, ubi.ubicacion_id, SUM(c.total), COUNT(*)
+    SELECT DISTINCT t.tiempo_id, c.sucursal_id, tm.tipo_mat_id, ubi.ubicacion_id, SUM(c.total), COUNT(*)
     FROM JOIN_FORCES.compra c
     JOIN JOIN_FORCES.compra_detalle cd ON cd.compra_numero = c.numero
     JOIN JOIN_FORCES.material m ON m.id = cd.material_id
@@ -321,7 +352,7 @@ BEGIN
     JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
     JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
     JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
-    GROUP BY t.tiempo_id, s.id, tm.tipo_mat_id, ubi.ubicacion_id
+    GROUP BY t.tiempo_id, c.sucursal_id, tm.tipo_mat_id, ubi.ubicacion_id
 END;
 GO
 
@@ -384,6 +415,8 @@ JOIN JOIN_FORCES.BI_HECHO_COMPRAS AS c ON f.sucursal_id = c.sucursal_id AND f.ti
 JOIN JOIN_FORCES.BI_DIM_TIEMPO AS t ON f.tiempo_id = t.tiempo_id 
 GROUP BY  t.tiempo_mes, c.sucursal_id -- POR CADA MES, POR CADA SUCURSAL
 GO
+
+
 
 EXEC JOIN_FORCES.migrar_bi
 GO
