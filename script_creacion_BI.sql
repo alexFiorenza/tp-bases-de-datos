@@ -349,17 +349,14 @@ GO
 CREATE OR ALTER VIEW JOIN_FORCES.V_GANANCIAS_MES_SUCURSAL
 AS
 SELECT
-    t.tiempo_anio,
     t.tiempo_mes,
     c.sucursal_id,
     SUM(f.subtotal) - SUM(c.subtotal) AS ganancia_total
 FROM JOIN_FORCES.BI_HECHO_FACTURACION AS f
-JOIN JOIN_FORCES.BI_DIM_TIEMPO AS t ON f.tiempo_id = t.tiempo_id -- POR TIEMPO
 JOIN JOIN_FORCES.BI_HECHO_COMPRAS AS c ON f.sucursal_id = c.sucursal_id AND f.tiempo_id = c.tiempo_id
-GROUP BY t.tiempo_anio, t.tiempo_mes, c.sucursal_id
+JOIN JOIN_FORCES.BI_DIM_TIEMPO AS t ON f.tiempo_id = t.tiempo_id 
+GROUP BY  t.tiempo_mes, c.sucursal_id -- POR CADA MES, POR CADA SUCURSAL
 GO
-
-
 
 EXEC JOIN_FORCES.migrar_bi
 GO
