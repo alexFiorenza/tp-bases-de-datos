@@ -197,9 +197,10 @@ CREATE TABLE JOIN_FORCES.proveedor(
 
 CREATE TABLE JOIN_FORCES.sucursal(
     id INT PRIMARY KEY IDENTITY(1,1) NOT NULL,
-    sucursal_direccion NVARCHAR(255) NOT NULL,
+    direccion_id INT NOT NULL,
     sucursal_telefono NVARCHAR(255) NOT NULL,
-    sucursal_email NVARCHAR(255) NOT NULL
+    sucursal_email NVARCHAR(255) NOT NULL,
+    FOREIGN KEY (direccion_id) REFERENCES JOIN_FORCES.direccion(id)
 )
 
 CREATE TABLE JOIN_FORCES.compra(
@@ -422,18 +423,18 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_sucursal
 AS
 BEGIN
-    INSERT INTO JOIN_FORCES.sucursal (sucursal_direccion, sucursal_telefono, sucursal_email)
+    INSERT INTO JOIN_FORCES.sucursal (direccion_id, sucursal_telefono, sucursal_email)
     SELECT DISTINCT
-        m.Sucursal_Direccion,
+        d.id,
         m.Sucursal_telefono,
         m.Sucursal_mail
     FROM gd_esquema.Maestra m
-    WHERE m.Sucursal_Direccion IS NOT NULL
-      AND m.Sucursal_telefono IS NOT NULL
+    JOIN JOIN_FORCES.direccion d ON m.Sucursal_Direccion = d.nombre
+    WHERE m.Sucursal_telefono IS NOT NULL
       AND m.Sucursal_mail IS NOT NULL
       AND NOT EXISTS (
           SELECT 1 FROM JOIN_FORCES.sucursal s
-          WHERE s.sucursal_direccion = m.Sucursal_Direccion
+          WHERE s.direccion_id = d.id
             AND s.sucursal_telefono = m.Sucursal_telefono
             AND s.sucursal_email = m.Sucursal_mail
       );
@@ -484,7 +485,8 @@ BEGIN
         m.Compra_Total
     FROM gd_esquema.Maestra m
     INNER JOIN JOIN_FORCES.proveedor prov ON m.Proveedor_Cuit = prov.cuit
-    INNER JOIN JOIN_FORCES.sucursal s ON m.Sucursal_Direccion = s.sucursal_direccion
+    INNER JOIN JOIN_FORCES.direccion d ON m.Sucursal_Direccion = d.nombre
+    INNER JOIN JOIN_FORCES.sucursal s ON d.id = s.direccion_id
         AND m.Sucursal_telefono = s.sucursal_telefono
         AND m.Sucursal_mail = s.sucursal_email
     WHERE m.Compra_Numero IS NOT NULL
@@ -505,7 +507,8 @@ BEGIN
     FROM gd_esquema.Maestra m
     INNER JOIN JOIN_FORCES.cliente c ON m.Cliente_Dni = c.dni
     INNER JOIN JOIN_FORCES.estado est ON m.Pedido_Estado = est.nombre
-    INNER JOIN JOIN_FORCES.sucursal s ON m.Sucursal_Direccion = s.sucursal_direccion
+    INNER JOIN JOIN_FORCES.direccion d ON m.Sucursal_Direccion = d.nombre
+    INNER JOIN JOIN_FORCES.sucursal s ON d.id = s.direccion_id
         AND m.Sucursal_telefono = s.sucursal_telefono
         AND m.Sucursal_mail = s.sucursal_email
     WHERE m.Pedido_Numero IS NOT NULL
@@ -636,7 +639,8 @@ BEGIN
         Factura_Fecha,
         Factura_Total
     FROM gd_esquema.Maestra m
-    JOIN JOIN_FORCES.sucursal s ON m.Sucursal_Direccion = s.sucursal_direccion
+    JOIN JOIN_FORCES.direccion d ON m.Sucursal_Direccion = d.nombre
+    JOIN JOIN_FORCES.sucursal s ON d.id = s.direccion_id
         AND m.Sucursal_telefono = s.sucursal_telefono
         AND m.Sucursal_mail = s.sucursal_email
     WHERE Factura_Numero IS NOT NULL

@@ -28,7 +28,10 @@ IF OBJECT_ID('JOIN_FORCES.migrar_dim_estado_pedido', 'P') IS NOT NULL DROP PROCE
 IF OBJECT_ID('JOIN_FORCES.migrar_dim_tipo_material', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_dim_tipo_material;
 IF OBJECT_ID('JOIN_FORCES.migrar_dim_modelo', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_dim_modelo;
 IF OBJECT_ID('JOIN_FORCES.migrar_dim_rango_etario', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_dim_rango_etario;
+IF OBJECT_ID('JOIN_FORCES.migrar_hecho_facturacion', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_hecho_facturacion;
 
+
+IF OBJECT_ID('JOIN_FORCES.migrar_bi', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_bi;
 
 ----- TABLAS DIMENSIONES -----
 CREATE TABLE JOIN_FORCES.BI_DIM_TIEMPO (
@@ -84,9 +87,9 @@ GO
 CREATE TABLE JOIN_FORCES.BI_HECHO_FACTURACION(
     subtotal DECIMAL(18,2),
     cantidad DECIMAL(18,2),
-    tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_TIEMPO(tiempo_id),
-    sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_SUCURSAL(sucursal_id),
-    ubicacion_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_UBICACION(ubicacion_id),
+    tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIEMPO(tiempo_id),
+    sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_SUCURSAL(sucursal_id),
+    ubicacion_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_UBICACION(ubicacion_id),
     PRIMARY KEY (tiempo_id, sucursal_id, ubicacion_id)
 )
 
@@ -94,17 +97,17 @@ CREATE TABLE JOIN_FORCES.BI_HECHO_VENTAS_MODELO(
     modelo NVARCHAR(255),
     valor_ventas decimal(18,2),
     cantidad_ventas DECIMAL(18,2),
-    tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_TIEMPO(tiempo_id),
-    sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_SUCURSAL(sucursal_id),
-    rango_etario_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_RANGO_ETARIO(rango_id),
-    ubicacion_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_UBICACION(ubicacion_id),
+    tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIEMPO(tiempo_id),
+    sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_SUCURSAL(sucursal_id),
+    rango_etario_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_RANGO_ETARIO(rango_id),
+    ubicacion_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_UBICACION(ubicacion_id),
     PRIMARY KEY (modelo, tiempo_id, sucursal_id, rango_etario_id, ubicacion_id)
 )
 
 CREATE TABLE JOIN_FORCES.BI_HECHO_PEDIDOS(
-    tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_TIEMPO(tiempo_id),
-    sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_SUCURSAL(sucursal_id),
-    tipo_mat_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_TIPO_MATERIAL(tipo_mat_id),
+    tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIEMPO(tiempo_id),
+    sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_SUCURSAL(sucursal_id),
+    tipo_mat_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIPO_MATERIAL(tipo_mat_id),
     cantidad DECIMAL(18,2),
     cantidad_entregados DECIMAL(18,2),
     cantidad_pendiente DECIMAL(18,2),
@@ -113,18 +116,18 @@ CREATE TABLE JOIN_FORCES.BI_HECHO_PEDIDOS(
     PRIMARY KEY (tiempo_id, sucursal_id, tipo_mat_id)
 )
 CREATE TABLE JOIN_FORCES.BI_HECHO_COMPRAS(
-    tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_TIEMPO(tiempo_id),
-    sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_SUCURSAL(sucursal_id),
-    tipo_mat_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_TIPO_MATERIAL(tipo_mat_id),
-    ubicacion_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_UBICACION(ubicacion_id),
+    tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIEMPO(tiempo_id),
+    sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_SUCURSAL(sucursal_id),
+    tipo_mat_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIPO_MATERIAL(tipo_mat_id),
+    ubicacion_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_UBICACION(ubicacion_id),
     subtotal DECIMAL(18,2),
     cantidad DECIMAL(18,2),
     PRIMARY KEY (tiempo_id, sucursal_id, tipo_mat_id, ubicacion_id)
 )
 
 CREATE TABLE JOIN_FORCES.BI_HECHO_ENVIOS(
-    tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_TIEMPO(tiempo_id),
-    ubicacion_id INT FOREIGN KEY REFERENCES JOIN_FORCES_BI.BI_DIM_UBICACION(ubicacion_id),
+    tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIEMPO(tiempo_id),
+    ubicacion_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_UBICACION(ubicacion_id),
     costo_total DECIMAL(18,2),
     cantidad DECIMAL(18,2),
     cantidad_tiempo DECIMAL(18,2),
@@ -224,6 +227,38 @@ BEGIN
 END;
 GO
 
+----- POBLAR TABLAS DE HECHOS -----
+CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_facturacion
+AS
+BEGIN
+    INSERT INTO JOIN_FORCES.BI_HECHO_FACTURACION (subtotal, cantidad, tiempo_id, sucursal_id, ubicacion_id)
+    SELECT DISTINCT SUM(f.total), COUNT(*), t.tiempo_id, s.id, ubi.ubicacion_id
+    FROM JOIN_FORCES.factura f
+    JOIN JOIN_FORCES.sucursal s ON f.sucursal_id = s.id
+    JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
+    JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
+    JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
+    JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
+    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(f.fecha) = t.tiempo_anio AND MONTH(f.fecha) = t.tiempo_mes
+    GROUP BY t.tiempo_id, s.id, ubi.ubicacion_id
+END;
+GO
 
 
+CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_bi
+AS
+BEGIN
+    EXEC JOIN_FORCES.migrar_dim_tiempo
+    EXEC JOIN_FORCES.migrar_dim_sucursal
+    EXEC JOIN_FORCES.migrar_dim_ubicacion
+    EXEC JOIN_FORCES.migrar_dim_turno_venta
+    EXEC JOIN_FORCES.migrar_dim_estado_pedido
+    EXEC JOIN_FORCES.migrar_dim_tipo_material
+    EXEC JOIN_FORCES.migrar_dim_modelo
+    EXEC JOIN_FORCES.migrar_dim_rango_etario
+    EXEC JOIN_FORCES.migrar_hecho_facturacion
+END;
+GO
 
+EXEC JOIN_FORCES.migrar_bi
+GO
