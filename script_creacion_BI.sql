@@ -100,14 +100,14 @@ CREATE TABLE JOIN_FORCES.BI_HECHO_FACTURACION(
 )
 
 CREATE TABLE JOIN_FORCES.BI_HECHO_VENTAS(
-    modelo NVARCHAR(255),
+    modelo_codigo BIGINT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_MODELO(modelo_codigo),
     valor_ventas decimal(18,2),
     cantidad_ventas DECIMAL(18,2),
     tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIEMPO(tiempo_id),
     sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_SUCURSAL(sucursal_id),
     rango_etario_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_RANGO_ETARIO(rango_id),
     ubicacion_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_UBICACION(ubicacion_id),
-    PRIMARY KEY (modelo, tiempo_id, sucursal_id, rango_etario_id, ubicacion_id)
+    PRIMARY KEY (modelo_codigo, tiempo_id, sucursal_id, rango_etario_id, ubicacion_id)
 )
 
 CREATE TABLE JOIN_FORCES.BI_HECHO_PEDIDOS(
@@ -116,11 +116,11 @@ CREATE TABLE JOIN_FORCES.BI_HECHO_PEDIDOS(
     turno_venta_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TURNO_VENTA(turno_venta_id),
     cantidad DECIMAL(18,2),
     cantidad_entregados DECIMAL(18,2),
-    cantidad_pendiente DECIMAL(18,2),
     cantidad_cancelados DECIMAL(18,2),
     tiempo_registro_factura DECIMAL(18,2),
     PRIMARY KEY (tiempo_id, sucursal_id, turno_venta_id)
 )
+
 CREATE TABLE JOIN_FORCES.BI_HECHO_COMPRAS(
     tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIEMPO(tiempo_id),
     sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_SUCURSAL(sucursal_id),
@@ -286,9 +286,9 @@ CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_ventas
 AS
 BEGIN
     INSERT INTO JOIN_FORCES.BI_HECHO_VENTAS (
-        modelo, valor_ventas, cantidad_ventas, tiempo_id, sucursal_id, rango_etario_id, ubicacion_id
+        modelo_codigo, valor_ventas, cantidad_ventas, tiempo_id, sucursal_id, rango_etario_id, ubicacion_id
     )
-    SELECT DISTINCT m.nombre, SUM(ISNULL(detalle_pedido.subtotal, 0)), COUNT(*), t.tiempo_id, s.id, re.rango_id, ubi.ubicacion_id
+    SELECT DISTINCT m.modelo_codigo, SUM(ISNULL(detalle_pedido.subtotal, 0)), COUNT(*), t.tiempo_id, s.id, re.rango_id, ubi.ubicacion_id
     FROM JOIN_FORCES.pedido pedido
     INNER JOIN JOIN_FORCES.detalle_pedido AS detalle_pedido ON pedido.numero = detalle_pedido.pedido_numero
     INNER JOIN JOIN_FORCES.sillon sillon ON sillon.codigo = detalle_pedido.sillon_codigo
@@ -301,7 +301,7 @@ BEGIN
     INNER JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
     INNER JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(pedido.pedido_fecha) = t.tiempo_anio AND MONTH(pedido.pedido_fecha) = t.tiempo_mes
     INNER JOIN JOIN_FORCES.BI_DIM_RANGO_ETARIO re ON DATEDIFF(YEAR, c.fecha_nacimiento, GETDATE()) BETWEEN re.rango_edad_minima AND re.rango_edad_maxima
-    GROUP BY m.nombre, t.tiempo_id, s.id, re.rango_id, ubi.ubicacion_id
+    GROUP BY m.modelo_codigo, t.tiempo_id, s.id, re.rango_id, ubi.ubicacion_id
 END;
 GO
 
