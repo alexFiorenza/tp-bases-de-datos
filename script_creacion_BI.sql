@@ -2,7 +2,13 @@ USE GD1C2025
 GO
 --- DROP DE TABLAS ---
 
--- DIMENSIONES
+IF OBJECT_ID('JOIN_FORCES.BI_HECHO_FACTURACION', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_FACTURACION;
+IF OBJECT_ID('JOIN_FORCES.BI_HECHO_VENTAS_MODELO', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_VENTAS_MODELO;
+IF OBJECT_ID('JOIN_FORCES.BI_HECHO_PEDIDOS', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_PEDIDOS;
+IF OBJECT_ID('JOIN_FORCES.BI_HECHO_COMPRAS', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_COMPRAS;
+IF OBJECT_ID('JOIN_FORCES.BI_HECHO_ENVIOS', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_ENVIOS;
+
+
 IF OBJECT_ID('JOIN_FORCES.BI_DIM_TIEMPO', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_DIM_TIEMPO;
 IF OBJECT_ID('JOIN_FORCES.BI_DIM_SUCURSAL', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_DIM_SUCURSAL;
 IF OBJECT_ID('JOIN_FORCES.BI_DIM_UBICACION', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_DIM_UBICACION;
@@ -12,12 +18,6 @@ IF OBJECT_ID('JOIN_FORCES.BI_DIM_TIPO_MATERIAL', 'U') IS NOT NULL DROP TABLE JOI
 IF OBJECT_ID('JOIN_FORCES.BI_DIM_MODELO', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_DIM_MODELO;
 IF OBJECT_ID('JOIN_FORCES.BI_DIM_RANGO_ETARIO', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_DIM_RANGO_ETARIO;
 
--- HECHOS
-IF OBJECT_ID('JOIN_FORCES.BI_HECHO_FACTURACION', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_FACTURACION;
-IF OBJECT_ID('JOIN_FORCES.BI_HECHO_VENTAS_MODELO', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_VENTAS_MODELO;
-IF OBJECT_ID('JOIN_FORCES.BI_HECHO_PEDIDOS', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_PEDIDOS;
-IF OBJECT_ID('JOIN_FORCES.BI_HECHO_COMPRAS', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_COMPRAS;
-IF OBJECT_ID('JOIN_FORCES.BI_HECHO_ENVIOS', 'U') IS NOT NULL DROP TABLE JOIN_FORCES.BI_HECHO_ENVIOS;
 
 --- DROP DE PROCEDURES ---
 IF OBJECT_ID('JOIN_FORCES.migrar_dim_tiempo', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_dim_tiempo;
@@ -29,9 +29,14 @@ IF OBJECT_ID('JOIN_FORCES.migrar_dim_tipo_material', 'P') IS NOT NULL DROP PROCE
 IF OBJECT_ID('JOIN_FORCES.migrar_dim_modelo', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_dim_modelo;
 IF OBJECT_ID('JOIN_FORCES.migrar_dim_rango_etario', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_dim_rango_etario;
 IF OBJECT_ID('JOIN_FORCES.migrar_hecho_facturacion', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_hecho_facturacion;
-
-
+IF OBJECT_ID('JOIN_FORCES.migrar_hecho_pedidos', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_hecho_pedidos;
+IF OBJECT_ID('JOIN_FORCES.migrar_hecho_compras', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_hecho_compras;
+IF OBJECT_ID('JOIN_FORCES.migrar_hecho_envios', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_hecho_envios;
 IF OBJECT_ID('JOIN_FORCES.migrar_bi', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCES.migrar_bi;
+
+
+--- DROP DE VISTAS ---
+IF OBJECT_ID('JOIN_FORCES.V_GANANCIAS_MES_SUCURSAL', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_GANANCIAS_MES_SUCURSAL;
 
 ----- TABLAS DIMENSIONES -----
 CREATE TABLE JOIN_FORCES.BI_DIM_TIEMPO (
@@ -107,13 +112,13 @@ CREATE TABLE JOIN_FORCES.BI_HECHO_VENTAS_MODELO(
 CREATE TABLE JOIN_FORCES.BI_HECHO_PEDIDOS(
     tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIEMPO(tiempo_id),
     sucursal_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_SUCURSAL(sucursal_id),
-    tipo_mat_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIPO_MATERIAL(tipo_mat_id),
+    turno_venta_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TURNO_VENTA(turno_venta_id),
     cantidad DECIMAL(18,2),
     cantidad_entregados DECIMAL(18,2),
     cantidad_pendiente DECIMAL(18,2),
     cantidad_cancelados DECIMAL(18,2),
     tiempo_registro_factura DECIMAL(18,2),
-    PRIMARY KEY (tiempo_id, sucursal_id, tipo_mat_id)
+    PRIMARY KEY (tiempo_id, sucursal_id, turno_venta_id)
 )
 CREATE TABLE JOIN_FORCES.BI_HECHO_COMPRAS(
     tiempo_id INT FOREIGN KEY REFERENCES JOIN_FORCES.BI_DIM_TIEMPO(tiempo_id),
@@ -227,7 +232,7 @@ BEGIN
 END;
 GO
 
------ POBLAR TABLAS DE HECHOS -----
+----- POBLAR TABLAS DE HECHOS (Ya estan agregados/precalculados muchos datos) -----
 CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_facturacion
 AS
 BEGIN
@@ -244,6 +249,81 @@ BEGIN
 END;
 GO
 
+CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_pedidos
+AS
+BEGIN
+    INSERT INTO JOIN_FORCES.BI_HECHO_PEDIDOS 
+    (tiempo_id, sucursal_id, turno_venta_id, cantidad, cantidad_entregados,  cantidad_cancelados, tiempo_registro_factura)
+    SELECT DISTINCT 
+        t.tiempo_id,
+        s.sucursal_id,
+        tv.turno_venta_id,
+        COUNT(*),
+        SUM(CASE WHEN estado.nombre = 'ENTREGADO' THEN 1 ELSE 0 END),
+        SUM(CASE WHEN estado.nombre = 'CANCELADO' THEN 1 ELSE 0 END),
+        SUM(
+            CASE
+                WHEN factura.fecha IS NOT NULL
+                THEN DATEDIFF(DAY, pedido.pedido_fecha, factura.fecha)
+                ELSE NULL
+            END
+        )
+    FROM JOIN_FORCES.pedido AS pedido
+    JOIN JOIN_FORCES.estado AS estado  ON estado.id = pedido.estado_id
+    LEFT JOIN JOIN_FORCES.detalle_pedido AS detalle_pedido ON pedido.numero = detalle_pedido.pedido_numero
+    LEFT JOIN JOIN_FORCES.detalle_factura AS detalle_factura ON detalle_pedido.id = detalle_factura.detalle_pedido_id
+    LEFT JOIN JOIN_FORCES.factura AS factura ON detalle_factura.factura_numero = factura.numero
+    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(pedido.pedido_fecha) = t.tiempo_anio AND MONTH(pedido.pedido_fecha) = t.tiempo_mes
+    JOIN JOIN_FORCES.BI_DIM_SUCURSAL s ON pedido.sucursal_id = s.sucursal_id
+    JOIN JOIN_FORCES.BI_DIM_TURNO_VENTA tv ON tv.turno_ventas_horario_minimo = DATEPART(HOUR, pedido.pedido_fecha)
+    GROUP BY t.tiempo_id, s.sucursal_id, tv.turno_venta_id
+END;
+GO
+
+CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_compras
+AS
+BEGIN
+    INSERT INTO JOIN_FORCES.BI_HECHO_COMPRAS (tiempo_id, sucursal_id, tipo_mat_id, ubicacion_id, subtotal, cantidad)
+    SELECT DISTINCT t.tiempo_id, s.id, tm.tipo_mat_id, ubi.ubicacion_id, SUM(c.total), COUNT(*)
+    FROM JOIN_FORCES.compra c
+    JOIN JOIN_FORCES.compra_detalle cd ON cd.compra_numero = c.numero
+    JOIN JOIN_FORCES.material m ON m.id = cd.material_id
+    JOIN JOIN_FORCES.sucursal s ON s.id = c.sucursal_id
+    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(c.fecha) = t.tiempo_anio AND MONTH(c.fecha) = t.tiempo_mes
+    JOIN JOIN_FORCES.BI_DIM_TIPO_MATERIAL tm ON tm.tipo_mat_id = m.tipo_material_id
+    JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
+    JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
+    JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
+    JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
+    GROUP BY t.tiempo_id, s.id, tm.tipo_mat_id, ubi.ubicacion_id
+END;
+GO
+
+CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_envios
+AS
+BEGIN
+    INSERT INTO JOIN_FORCES.BI_HECHO_ENVIOS (tiempo_id, ubicacion_id, costo_total, cantidad, cantidad_tiempo)
+    SELECT DISTINCT t.tiempo_id, ubi.ubicacion_id,
+    SUM(e.total),
+    COUNT(*),
+    SUM(
+        CASE WHEN e.fecha < = e.fecha_programada
+        THEN 1
+        ELSE 0
+        END
+    ) 
+    FROM JOIN_FORCES.envio e
+    JOIN JOIN_FORCES.factura f ON f.numero = e.factura_id
+    JOIN JOIN_FORCES.cliente c ON c.dni = f.cliente_dni
+    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(e.fecha) = t.tiempo_anio AND MONTH(e.fecha) = t.tiempo_mes
+    JOIN JOIN_FORCES.SUCURSAL s ON s.id = f.sucursal_id
+    JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
+    JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
+    JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
+    JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
+    GROUP BY t.tiempo_id, ubi.ubicacion_id
+END;
+GO
 
 CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_bi
 AS
@@ -257,8 +337,29 @@ BEGIN
     EXEC JOIN_FORCES.migrar_dim_modelo
     EXEC JOIN_FORCES.migrar_dim_rango_etario
     EXEC JOIN_FORCES.migrar_hecho_facturacion
+    EXEC JOIN_FORCES.migrar_hecho_pedidos
+    EXEC JOIN_FORCES.migrar_hecho_compras
+    EXEC JOIN_FORCES.migrar_hecho_envios
 END;
 GO
+
+--- VISTAS -----
+
+-- 1. Ganancias: Total de ingresos (facturacion) - total de egresos (compras), por cada mes, por cada sucursal.
+CREATE OR ALTER VIEW JOIN_FORCES.V_GANANCIAS_MES_SUCURSAL
+AS
+SELECT
+    t.tiempo_anio,
+    t.tiempo_mes,
+    c.sucursal_id,
+    SUM(f.subtotal) - SUM(c.subtotal) AS ganancia_total
+FROM JOIN_FORCES.BI_HECHO_FACTURACION AS f
+JOIN JOIN_FORCES.BI_DIM_TIEMPO AS t ON f.tiempo_id = t.tiempo_id -- POR TIEMPO
+JOIN JOIN_FORCES.BI_HECHO_COMPRAS AS c ON f.sucursal_id = c.sucursal_id AND f.tiempo_id = c.tiempo_id
+GROUP BY t.tiempo_anio, t.tiempo_mes, c.sucursal_id
+GO
+
+
 
 EXEC JOIN_FORCES.migrar_bi
 GO
