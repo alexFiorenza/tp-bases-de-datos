@@ -269,14 +269,14 @@ CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_facturacion
 AS
 BEGIN
     INSERT INTO JOIN_FORCES.BI_HECHO_FACTURACION (subtotal, cantidad, tiempo_id, sucursal_id, ubicacion_id)
-    SELECT DISTINCT SUM(f.total), COUNT(*), t.tiempo_id, s.id, ubi.ubicacion_id
+    SELECT DISTINCT SUM(ISNULL(f.total, 0)), COUNT(*), t.tiempo_id, s.id, ubi.ubicacion_id
     FROM JOIN_FORCES.factura f
-    JOIN JOIN_FORCES.sucursal s ON f.sucursal_id = s.id
-    JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
-    JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
-    JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
-    JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
-    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(f.fecha) = t.tiempo_anio AND MONTH(f.fecha) = t.tiempo_mes
+    INNER JOIN JOIN_FORCES.sucursal s ON f.sucursal_id = s.id
+    INNER JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
+    INNER JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
+    INNER JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
+    INNER JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
+    INNER JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(f.fecha) = t.tiempo_anio AND MONTH(f.fecha) = t.tiempo_mes
     GROUP BY t.tiempo_id, s.id, ubi.ubicacion_id
 END;
 GO
@@ -288,19 +288,19 @@ BEGIN
     INSERT INTO JOIN_FORCES.BI_HECHO_VENTAS (
         modelo, valor_ventas, cantidad_ventas, tiempo_id, sucursal_id, rango_etario_id, ubicacion_id
     )
-    SELECT DISTINCT m.nombre, SUM(detalle_pedido.subtotal), COUNT(*), t.tiempo_id, s.id, re.rango_id, ubi.ubicacion_id
+    SELECT DISTINCT m.nombre, SUM(ISNULL(detalle_pedido.subtotal, 0)), COUNT(*), t.tiempo_id, s.id, re.rango_id, ubi.ubicacion_id
     FROM JOIN_FORCES.pedido pedido
-    JOIN JOIN_FORCES.detalle_pedido AS detalle_pedido ON pedido.numero = detalle_pedido.pedido_numero
-    JOIN JOIN_FORCES.sillon sillon ON sillon.codigo = detalle_pedido.sillon_codigo
-    JOIN JOIN_FORCES.modelo m ON m.modelo_codigo = sillon.modelo_codigo
-    JOIN JOIN_FORCES.sucursal s ON s.id = pedido.sucursal_id
-    JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
-    JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
-    JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
-    JOIN JOIN_FORCES.cliente c ON c.dni = pedido.cliente_dni
-    JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
-    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(pedido.pedido_fecha) = t.tiempo_anio AND MONTH(pedido.pedido_fecha) = t.tiempo_mes
-    JOIN JOIN_FORCES.BI_DIM_RANGO_ETARIO re ON DATEDIFF(YEAR, c.fecha_nacimiento, GETDATE()) BETWEEN re.rango_edad_minima AND re.rango_edad_maxima
+    INNER JOIN JOIN_FORCES.detalle_pedido AS detalle_pedido ON pedido.numero = detalle_pedido.pedido_numero
+    INNER JOIN JOIN_FORCES.sillon sillon ON sillon.codigo = detalle_pedido.sillon_codigo
+    INNER JOIN JOIN_FORCES.modelo m ON m.modelo_codigo = sillon.modelo_codigo
+    INNER JOIN JOIN_FORCES.sucursal s ON s.id = pedido.sucursal_id
+    INNER JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
+    INNER JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
+    INNER JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
+    INNER JOIN JOIN_FORCES.cliente c ON c.dni = pedido.cliente_dni
+    INNER JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
+    INNER JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(pedido.pedido_fecha) = t.tiempo_anio AND MONTH(pedido.pedido_fecha) = t.tiempo_mes
+    INNER JOIN JOIN_FORCES.BI_DIM_RANGO_ETARIO re ON DATEDIFF(YEAR, c.fecha_nacimiento, GETDATE()) BETWEEN re.rango_edad_minima AND re.rango_edad_maxima
     GROUP BY m.nombre, t.tiempo_id, s.id, re.rango_id, ubi.ubicacion_id
 END;
 GO
@@ -316,13 +316,13 @@ BEGIN
         s.sucursal_id,
         tv.turno_venta_id,
         COUNT(*),
-        SUM(CASE WHEN estado.nombre = 'ENTREGADO' THEN 1 ELSE 0 END),
-        SUM(CASE WHEN estado.nombre = 'CANCELADO' THEN 1 ELSE 0 END),
+        SUM(ISNULL(CASE WHEN estado.nombre = 'ENTREGADO' THEN 1 ELSE 0 END, 0)),
+        SUM(ISNULL(CASE WHEN estado.nombre = 'CANCELADO' THEN 1 ELSE 0 END, 0)),
         SUM(
             CASE
                 WHEN factura.fecha IS NOT NULL
                 THEN DATEDIFF(DAY, pedido.pedido_fecha, factura.fecha)
-                ELSE NULL
+                ELSE 0
             END
         )
     FROM JOIN_FORCES.pedido AS pedido
@@ -330,9 +330,9 @@ BEGIN
     LEFT JOIN JOIN_FORCES.detalle_pedido AS detalle_pedido ON pedido.numero = detalle_pedido.pedido_numero
     LEFT JOIN JOIN_FORCES.detalle_factura AS detalle_factura ON detalle_pedido.id = detalle_factura.detalle_pedido_id
     LEFT JOIN JOIN_FORCES.factura AS factura ON detalle_factura.factura_numero = factura.numero
-    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(pedido.pedido_fecha) = t.tiempo_anio AND MONTH(pedido.pedido_fecha) = t.tiempo_mes
-    JOIN JOIN_FORCES.BI_DIM_SUCURSAL s ON pedido.sucursal_id = s.sucursal_id
-    JOIN JOIN_FORCES.BI_DIM_TURNO_VENTA tv ON tv.turno_ventas_horario_minimo = DATEPART(HOUR, pedido.pedido_fecha)
+    INNER JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(pedido.pedido_fecha) = t.tiempo_anio AND MONTH(pedido.pedido_fecha) = t.tiempo_mes
+    INNER JOIN JOIN_FORCES.BI_DIM_SUCURSAL s ON pedido.sucursal_id = s.sucursal_id
+    INNER JOIN JOIN_FORCES.BI_DIM_TURNO_VENTA tv ON tv.turno_ventas_horario_minimo = DATEPART(HOUR, pedido.pedido_fecha)
     GROUP BY t.tiempo_id, s.sucursal_id, tv.turno_venta_id
 END;
 GO
@@ -341,17 +341,17 @@ CREATE OR ALTER PROCEDURE JOIN_FORCES.migrar_hecho_compras
 AS
 BEGIN
     INSERT INTO JOIN_FORCES.BI_HECHO_COMPRAS (tiempo_id, sucursal_id, tipo_mat_id, ubicacion_id, subtotal, cantidad)
-    SELECT DISTINCT t.tiempo_id, c.sucursal_id, tm.tipo_mat_id, ubi.ubicacion_id, SUM(c.total), COUNT(*)
+    SELECT DISTINCT t.tiempo_id, c.sucursal_id, tm.tipo_mat_id, ubi.ubicacion_id, SUM(ISNULL(c.total, 0)), COUNT(*)
     FROM JOIN_FORCES.compra c
-    JOIN JOIN_FORCES.compra_detalle cd ON cd.compra_numero = c.numero
-    JOIN JOIN_FORCES.material m ON m.id = cd.material_id
-    JOIN JOIN_FORCES.sucursal s ON s.id = c.sucursal_id
-    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(c.fecha) = t.tiempo_anio AND MONTH(c.fecha) = t.tiempo_mes
-    JOIN JOIN_FORCES.BI_DIM_TIPO_MATERIAL tm ON tm.tipo_mat_id = m.tipo_material_id
-    JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
-    JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
-    JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
-    JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
+    INNER JOIN JOIN_FORCES.compra_detalle cd ON cd.compra_numero = c.numero
+    INNER JOIN JOIN_FORCES.material m ON m.id = cd.material_id
+    INNER JOIN JOIN_FORCES.sucursal s ON s.id = c.sucursal_id
+    INNER JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(c.fecha) = t.tiempo_anio AND MONTH(c.fecha) = t.tiempo_mes
+    INNER JOIN JOIN_FORCES.BI_DIM_TIPO_MATERIAL tm ON tm.tipo_mat_id = m.tipo_material_id
+    INNER JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
+    INNER JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
+    INNER JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
+    INNER JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
     GROUP BY t.tiempo_id, c.sucursal_id, tm.tipo_mat_id, ubi.ubicacion_id
 END;
 GO
@@ -361,7 +361,7 @@ AS
 BEGIN
     INSERT INTO JOIN_FORCES.BI_HECHO_ENVIOS (tiempo_id, ubicacion_id, costo_total, cantidad, cantidad_tiempo)
     SELECT DISTINCT t.tiempo_id, ubi.ubicacion_id,
-    SUM(e.total),
+    SUM(ISNULL(e.total, 0)),
     COUNT(*),
     SUM(
         CASE WHEN e.fecha < = e.fecha_programada
@@ -370,14 +370,14 @@ BEGIN
         END
     ) 
     FROM JOIN_FORCES.envio e
-    JOIN JOIN_FORCES.factura f ON f.numero = e.factura_id
-    JOIN JOIN_FORCES.cliente c ON c.dni = f.cliente_dni
-    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(e.fecha) = t.tiempo_anio AND MONTH(e.fecha) = t.tiempo_mes
-    JOIN JOIN_FORCES.SUCURSAL s ON s.id = f.sucursal_id
-    JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
-    JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
-    JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
-    JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
+    INNER JOIN JOIN_FORCES.factura f ON f.numero = e.factura_id
+    INNER JOIN JOIN_FORCES.cliente c ON c.dni = f.cliente_dni
+    INNER JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(e.fecha) = t.tiempo_anio AND MONTH(e.fecha) = t.tiempo_mes
+    INNER JOIN JOIN_FORCES.SUCURSAL s ON s.id = f.sucursal_id
+    INNER JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
+    INNER JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
+    INNER JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
+    INNER JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
     GROUP BY t.tiempo_id, ubi.ubicacion_id
 END;
 GO
@@ -409,13 +409,12 @@ AS
 SELECT
     t.tiempo_mes,
     c.sucursal_id,
-    SUM(f.subtotal) - SUM(c.subtotal) AS ganancia_total
+    SUM(ISNULL(f.subtotal, 0)) - SUM(ISNULL(c.subtotal, 0)) AS ganancia_total
 FROM JOIN_FORCES.BI_HECHO_FACTURACION AS f
 JOIN JOIN_FORCES.BI_HECHO_COMPRAS AS c ON f.sucursal_id = c.sucursal_id AND f.tiempo_id = c.tiempo_id
 JOIN JOIN_FORCES.BI_DIM_TIEMPO AS t ON f.tiempo_id = t.tiempo_id 
 GROUP BY  t.tiempo_mes, c.sucursal_id -- POR CADA MES, POR CADA SUCURSAL
 GO
-
 
 
 EXEC JOIN_FORCES.migrar_bi
