@@ -1,6 +1,5 @@
 USE GD1C2025
 GO
-
 ----- ELIMINACION DE TABLAS -----
 IF OBJECT_ID('JOIN_FORCES.detalle_factura', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.detalle_factura
