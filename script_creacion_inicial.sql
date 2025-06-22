@@ -2,8 +2,6 @@ USE GD1C2025
 GO
 
 ----- ELIMINACION DE TABLAS -----
-IF OBJECT_ID('JOIN_FORCES.detalles_temporales', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.detalles_temporales
 IF OBJECT_ID('JOIN_FORCES.detalle_factura', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.detalle_factura
 IF OBJECT_ID('JOIN_FORCES.envio', 'U') IS NOT NULL
@@ -91,10 +89,13 @@ IF OBJECT_ID('JOIN_FORCES.migrar_material', 'P') IS NOT NULL
     DROP PROCEDURE JOIN_FORCES.migrar_material
 IF OBJECT_ID('JOIN_FORCES.migrar_tipo_material', 'P') IS NOT NULL
     DROP PROCEDURE JOIN_FORCES.migrar_tipo_material
-IF OBJECT_ID('JOIN_FORCES.migrar_detalles', 'P') IS NOT NULL
-    DROP PROCEDURE JOIN_FORCES.migrar_detalles
+IF OBJECT_ID('JOIN_FORCES.migrar_detalle_pedido', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_detalle_pedido
+IF OBJECT_ID('JOIN_FORCES.migrar_detalle_factura', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_detalle_factura
+IF OBJECT_ID('JOIN_FORCES.migrar_compra_detalle', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_compra_detalle
 GO
-
 
 ----- ELIMINACION DE ESQUEMA -----
 IF SCHEMA_ID('JOIN_FORCES') IS NOT NULL
@@ -102,7 +103,6 @@ IF SCHEMA_ID('JOIN_FORCES') IS NOT NULL
 GO
 
 ----- ESQUEMA JOIN_FORCES -----
-GO
 CREATE SCHEMA JOIN_FORCES
 GO
 
@@ -296,6 +296,22 @@ CREATE TABLE JOIN_FORCES.envio(
     fecha DATETIME NOT NULL,
     total DECIMAL(18,2) NOT NULL,
     FOREIGN KEY (factura_id) REFERENCES JOIN_FORCES.factura(numero)
+)
+GO
+
+-- Esta tabla la creo solo para poder hacer mas comodo las migraciones, por eso no esta en el DER.
+-- Al terminar los procedures se elimina completamente.
+CREATE TABLE JOIN_FORCES.detalles_temporales (
+        detalle_pedido_codigo bigint IDENTITY(1,1),
+        detalle_pedido_numero decimal(18,0),
+        detalle_pedido_sillon bigint,
+        detalle_pedido_cantidad bigint,
+        detalle_pedido_precio decimal(18,2),
+        detalle_pedido_subtotal decimal(18,2),
+        detalle_factura_numero bigint,
+        detalle_factura_precio decimal(18,2),
+        detalle_factura_cantidad decimal(18,0),
+        detalle_factura_subtotal decimal(18,2)
 )
 GO
 
@@ -660,8 +676,6 @@ BEGIN
 END
 GO
 
-
-
 CREATE PROCEDURE JOIN_FORCES.migrar_envio
 AS
 BEGIN
@@ -689,11 +703,9 @@ BEGIN
 END
 GO
 
-
 CREATE PROCEDURE JOIN_FORCES.migrar_tipo_material
 AS
 BEGIN
-
     INSERT INTO
         JOIN_FORCES.tipo_material (nombre)
     SELECT DISTINCT
@@ -761,23 +773,9 @@ BEGIN
 END
 GO
 
-
-CREATE PROCEDURE JOIN_FORCES.migrar_detalles
+CREATE PROCEDURE JOIN_FORCES.migrar_detalles_temporales
 AS
 BEGIN
-    CREATE TABLE JOIN_FORCES.detalles_temporales (
-        detalle_pedido_codigo bigint IDENTITY(1,1),
-        detalle_pedido_numero decimal(18,0),
-        detalle_pedido_sillon bigint,
-        detalle_pedido_cantidad bigint,
-        detalle_pedido_precio decimal(18,2),
-        detalle_pedido_subtotal decimal(18,2),
-        detalle_factura_numero bigint,
-        detalle_factura_precio decimal(18,2),
-        detalle_factura_cantidad decimal(18,0),
-        detalle_factura_subtotal decimal(18,2)
-    )
-
     INSERT INTO JOIN_FORCES.detalles_temporales (
         detalle_pedido_numero,
         detalle_pedido_sillon,
@@ -805,7 +803,12 @@ BEGIN
         p.Pedido_Numero IS NOT NULL AND
         p.Sillon_Codigo IS NOT NULL AND
         f.Factura_Numero IS NOT NULL;
+END
+GO
 
+CREATE PROCEDURE JOIN_FORCES.migrar_detalle_pedido
+AS
+BEGIN    
     INSERT INTO JOIN_FORCES.detalle_pedido (
         id,
         pedido_numero,
@@ -821,9 +824,14 @@ BEGIN
         detalle_pedido_cantidad,
         detalle_pedido_precio,
         detalle_pedido_subtotal
-    FROM JOIN_FORCES.detalles_temporales;
+    FROM JOIN_FORCES.detalles_temporales
+END
+GO
 
-    INSERT INTO JOIN_FORCES.detalle_factura (
+CREATE PROCEDURE JOIN_FORCES.migrar_detalle_factura
+AS
+BEGIN
+INSERT INTO JOIN_FORCES.detalle_factura (
         factura_numero,
         detalle_pedido_id,
         cantidad,
@@ -838,7 +846,12 @@ BEGIN
         dt.detalle_factura_subtotal
     FROM JOIN_FORCES.detalles_temporales dt
     WHERE dt.detalle_factura_numero IS NOT NULL
+END
+GO
 
+CREATE PROCEDURE JOIN_FORCES.migrar_compra_detalle
+AS
+BEGIN
     INSERT INTO JOIN_FORCES.compra_detalle (compra_numero, material_id, subtotal, precio_unitario, cantidad)
     SELECT DISTINCT
         m.Compra_Numero,
@@ -875,18 +888,25 @@ BEGIN
     EXEC JOIN_FORCES.migrar_material
     EXEC JOIN_FORCES.migrar_compra
     EXEC JOIN_FORCES.migrar_pedido
-    EXEC JOIN_FORCES.migrar_modelo;
-    EXEC JOIN_FORCES.migrar_medida;
-    EXEC JOIN_FORCES.migrar_modelo_medida;
-    EXEC JOIN_FORCES.migrar_sillon;
-    EXEC JOIN_FORCES.migrar_sillon_material;
-    EXEC JOIN_FORCES.migrar_factura;
-    EXEC JOIN_FORCES.migrar_cancelacion_pedido;
-    EXEC JOIN_FORCES.migrar_detalles;
-    EXEC JOIN_FORCES.migrar_envio;
+    EXEC JOIN_FORCES.migrar_modelo
+    EXEC JOIN_FORCES.migrar_medida
+    EXEC JOIN_FORCES.migrar_modelo_medida
+    EXEC JOIN_FORCES.migrar_sillon
+    EXEC JOIN_FORCES.migrar_sillon_material
+    EXEC JOIN_FORCES.migrar_factura
+    EXEC JOIN_FORCES.migrar_cancelacion_pedido
+    EXEC JOIN_FORCES.migrar_detalles_temporales
+    EXEC JOIN_FORCES.migrar_detalle_pedido
+    EXEC JOIN_FORCES.migrar_detalle_factura
+    EXEC JOIN_FORCES.migrar_compra_detalle
+    EXEC JOIN_FORCES.migrar_envio
 END
 GO
 
 EXEC JOIN_FORCES.migrar_datos
 GO
 
+DROP PROCEDURE JOIN_FORCES.migrar_detalles_temporales
+GO
+DROP TABLE JOIN_FORCES.detalles_temporales
+GO
