@@ -2,8 +2,6 @@ USE GD1C2025
 GO
 
 ----- ELIMINACION DE TABLAS -----
-IF OBJECT_ID('JOIN_FORCES.detalles_temporales', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.detalles_temporales
 IF OBJECT_ID('JOIN_FORCES.detalle_factura', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.detalle_factura
 IF OBJECT_ID('JOIN_FORCES.envio', 'U') IS NOT NULL
@@ -16,6 +14,8 @@ IF OBJECT_ID('JOIN_FORCES.detalle_pedido', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.detalle_pedido
 IF OBJECT_ID('JOIN_FORCES.pedido', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.pedido
+IF OBJECT_ID('JOIN_FORCES.cliente', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.cliente
 IF OBJECT_ID('JOIN_FORCES.compra_detalle', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.compra_detalle
 IF OBJECT_ID('JOIN_FORCES.compra', 'U') IS NOT NULL
@@ -26,28 +26,26 @@ IF OBJECT_ID('JOIN_FORCES.sillon', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.sillon
 IF OBJECT_ID('JOIN_FORCES.modelo_medida', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.modelo_medida
-IF OBJECT_ID('JOIN_FORCES.medida', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.medida
-IF OBJECT_ID('JOIN_FORCES.modelo', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.modelo
-IF OBJECT_ID('JOIN_FORCES.material', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.material
-IF OBJECT_ID('JOIN_FORCES.tipo_material', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.tipo_material
+IF OBJECT_ID('JOIN_FORCES.sucursal', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.sucursal
 IF OBJECT_ID('JOIN_FORCES.direccion', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.direccion
 IF OBJECT_ID('JOIN_FORCES.localidad', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.localidad
-IF OBJECT_ID('JOIN_FORCES.provincia', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.provincia
+IF OBJECT_ID('JOIN_FORCES.material', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.material
+IF OBJECT_ID('JOIN_FORCES.tipo_material', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.tipo_material
+IF OBJECT_ID('JOIN_FORCES.medida', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.medida
+IF OBJECT_ID('JOIN_FORCES.modelo', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.modelo
 IF OBJECT_ID('JOIN_FORCES.estado', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.estado
 IF OBJECT_ID('JOIN_FORCES.proveedor', 'U') IS NOT NULL
     DROP TABLE JOIN_FORCES.proveedor
-IF OBJECT_ID('JOIN_FORCES.sucursal', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.sucursal
-IF OBJECT_ID('JOIN_FORCES.cliente', 'U') IS NOT NULL
-    DROP TABLE JOIN_FORCES.cliente
+IF OBJECT_ID('JOIN_FORCES.provincia', 'U') IS NOT NULL
+    DROP TABLE JOIN_FORCES.provincia
 GO
 
 ----- ELIMINACION DE PROCEDURES -----
@@ -91,10 +89,13 @@ IF OBJECT_ID('JOIN_FORCES.migrar_material', 'P') IS NOT NULL
     DROP PROCEDURE JOIN_FORCES.migrar_material
 IF OBJECT_ID('JOIN_FORCES.migrar_tipo_material', 'P') IS NOT NULL
     DROP PROCEDURE JOIN_FORCES.migrar_tipo_material
-IF OBJECT_ID('JOIN_FORCES.migrar_detalles', 'P') IS NOT NULL
-    DROP PROCEDURE JOIN_FORCES.migrar_detalles
+IF OBJECT_ID('JOIN_FORCES.migrar_detalle_pedido', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_detalle_pedido
+IF OBJECT_ID('JOIN_FORCES.migrar_detalle_factura', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_detalle_factura
+IF OBJECT_ID('JOIN_FORCES.migrar_compra_detalle', 'P') IS NOT NULL
+    DROP PROCEDURE JOIN_FORCES.migrar_compra_detalle
 GO
-
 
 ----- ELIMINACION DE ESQUEMA -----
 IF SCHEMA_ID('JOIN_FORCES') IS NOT NULL
@@ -102,7 +103,6 @@ IF SCHEMA_ID('JOIN_FORCES') IS NOT NULL
 GO
 
 ----- ESQUEMA JOIN_FORCES -----
-GO
 CREATE SCHEMA JOIN_FORCES
 GO
 
@@ -197,9 +197,10 @@ CREATE TABLE JOIN_FORCES.proveedor(
 
 CREATE TABLE JOIN_FORCES.sucursal(
     id INT PRIMARY KEY IDENTITY(1,1) NOT NULL,
-    sucursal_direccion NVARCHAR(255) NOT NULL,
+    direccion_id INT NOT NULL,
     sucursal_telefono NVARCHAR(255) NOT NULL,
-    sucursal_email NVARCHAR(255) NOT NULL
+    sucursal_email NVARCHAR(255) NOT NULL,
+    FOREIGN KEY (direccion_id) REFERENCES JOIN_FORCES.direccion(id)
 )
 
 CREATE TABLE JOIN_FORCES.compra(
@@ -228,7 +229,9 @@ CREATE TABLE JOIN_FORCES.cliente(
     nombre NVARCHAR(255) NOT NULL,
     email NVARCHAR(255) NOT NULL,
     telefono NVARCHAR(255) NOT NULL,
-    fecha_nacimiento DATETIME NOT NULL
+    fecha_nacimiento DATETIME NOT NULL,
+    direccion_id INT NOT NULL,
+    FOREIGN KEY (direccion_id) REFERENCES JOIN_FORCES.direccion(id)
 )
 
 CREATE TABLE JOIN_FORCES.pedido(
@@ -293,6 +296,22 @@ CREATE TABLE JOIN_FORCES.envio(
     fecha DATETIME NOT NULL,
     total DECIMAL(18,2) NOT NULL,
     FOREIGN KEY (factura_id) REFERENCES JOIN_FORCES.factura(numero)
+)
+GO
+
+-- Esta tabla la creo solo para poder hacer mas comodo las migraciones, por eso no esta en el DER.
+-- Al terminar los procedures se elimina completamente.
+CREATE TABLE JOIN_FORCES.detalles_temporales (
+        detalle_pedido_codigo bigint IDENTITY(1,1),
+        detalle_pedido_numero decimal(18,0),
+        detalle_pedido_sillon bigint,
+        detalle_pedido_cantidad bigint,
+        detalle_pedido_precio decimal(18,2),
+        detalle_pedido_subtotal decimal(18,2),
+        detalle_factura_numero bigint,
+        detalle_factura_precio decimal(18,2),
+        detalle_factura_cantidad decimal(18,0),
+        detalle_factura_subtotal decimal(18,2)
 )
 GO
 
@@ -422,18 +441,18 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_sucursal
 AS
 BEGIN
-    INSERT INTO JOIN_FORCES.sucursal (sucursal_direccion, sucursal_telefono, sucursal_email)
+    INSERT INTO JOIN_FORCES.sucursal (direccion_id, sucursal_telefono, sucursal_email)
     SELECT DISTINCT
-        m.Sucursal_Direccion,
+        d.id,
         m.Sucursal_telefono,
         m.Sucursal_mail
     FROM gd_esquema.Maestra m
-    WHERE m.Sucursal_Direccion IS NOT NULL
-      AND m.Sucursal_telefono IS NOT NULL
+    JOIN JOIN_FORCES.direccion d ON m.Sucursal_Direccion = d.nombre
+    WHERE m.Sucursal_telefono IS NOT NULL
       AND m.Sucursal_mail IS NOT NULL
       AND NOT EXISTS (
           SELECT 1 FROM JOIN_FORCES.sucursal s
-          WHERE s.sucursal_direccion = m.Sucursal_Direccion
+          WHERE s.direccion_id = d.id
             AND s.sucursal_telefono = m.Sucursal_telefono
             AND s.sucursal_email = m.Sucursal_mail
       );
@@ -443,14 +462,18 @@ GO
 CREATE PROCEDURE JOIN_FORCES.migrar_cliente
 AS
 BEGIN
-    INSERT INTO JOIN_FORCES.cliente (dni, nombre, email, telefono, fecha_nacimiento)
+    INSERT INTO JOIN_FORCES.cliente (dni, nombre, email, telefono, fecha_nacimiento, direccion_id)
     SELECT DISTINCT
         m.Cliente_Dni,
         TRIM(ISNULL(m.Cliente_Nombre, N'') + N' ' + ISNULL(m.Cliente_Apellido, N'')),
         m.Cliente_Mail,
         m.Cliente_Telefono,
-        m.Cliente_FechaNacimiento
+        m.Cliente_FechaNacimiento,
+        d.id
     FROM gd_esquema.Maestra m
+    INNER JOIN JOIN_FORCES.provincia AS prov ON m.Cliente_Provincia = prov.nombre
+    INNER JOIN JOIN_FORCES.localidad AS l ON m.Cliente_Localidad = l.nombre AND l.provincia_id = prov.id
+    INNER JOIN JOIN_FORCES.direccion AS d ON m.Cliente_Direccion = d.nombre AND d.localidad_id = l.id
     WHERE m.Cliente_Dni IS NOT NULL
     AND NOT EXISTS (SELECT 1 FROM JOIN_FORCES.cliente c WHERE c.dni = m.Cliente_Dni);
 END
@@ -484,7 +507,8 @@ BEGIN
         m.Compra_Total
     FROM gd_esquema.Maestra m
     INNER JOIN JOIN_FORCES.proveedor prov ON m.Proveedor_Cuit = prov.cuit
-    INNER JOIN JOIN_FORCES.sucursal s ON m.Sucursal_Direccion = s.sucursal_direccion
+    INNER JOIN JOIN_FORCES.direccion d ON m.Sucursal_Direccion = d.nombre
+    INNER JOIN JOIN_FORCES.sucursal s ON d.id = s.direccion_id
         AND m.Sucursal_telefono = s.sucursal_telefono
         AND m.Sucursal_mail = s.sucursal_email
     WHERE m.Compra_Numero IS NOT NULL
@@ -505,7 +529,8 @@ BEGIN
     FROM gd_esquema.Maestra m
     INNER JOIN JOIN_FORCES.cliente c ON m.Cliente_Dni = c.dni
     INNER JOIN JOIN_FORCES.estado est ON m.Pedido_Estado = est.nombre
-    INNER JOIN JOIN_FORCES.sucursal s ON m.Sucursal_Direccion = s.sucursal_direccion
+    INNER JOIN JOIN_FORCES.direccion d ON m.Sucursal_Direccion = d.nombre
+    INNER JOIN JOIN_FORCES.sucursal s ON d.id = s.direccion_id
         AND m.Sucursal_telefono = s.sucursal_telefono
         AND m.Sucursal_mail = s.sucursal_email
     WHERE m.Pedido_Numero IS NOT NULL
@@ -636,7 +661,8 @@ BEGIN
         Factura_Fecha,
         Factura_Total
     FROM gd_esquema.Maestra m
-    JOIN JOIN_FORCES.sucursal s ON m.Sucursal_Direccion = s.sucursal_direccion
+    JOIN JOIN_FORCES.direccion d ON m.Sucursal_Direccion = d.nombre
+    JOIN JOIN_FORCES.sucursal s ON d.id = s.direccion_id
         AND m.Sucursal_telefono = s.sucursal_telefono
         AND m.Sucursal_mail = s.sucursal_email
     WHERE Factura_Numero IS NOT NULL
@@ -649,8 +675,6 @@ BEGIN
         );
 END
 GO
-
-
 
 CREATE PROCEDURE JOIN_FORCES.migrar_envio
 AS
@@ -679,11 +703,9 @@ BEGIN
 END
 GO
 
-
 CREATE PROCEDURE JOIN_FORCES.migrar_tipo_material
 AS
 BEGIN
-
     INSERT INTO
         JOIN_FORCES.tipo_material (nombre)
     SELECT DISTINCT
@@ -751,23 +773,9 @@ BEGIN
 END
 GO
 
-
-CREATE PROCEDURE JOIN_FORCES.migrar_detalles
+CREATE PROCEDURE JOIN_FORCES.migrar_detalles_temporales
 AS
 BEGIN
-    CREATE TABLE JOIN_FORCES.detalles_temporales (
-        detalle_pedido_codigo bigint IDENTITY(1,1),
-        detalle_pedido_numero decimal(18,0),
-        detalle_pedido_sillon bigint,
-        detalle_pedido_cantidad bigint,
-        detalle_pedido_precio decimal(18,2),
-        detalle_pedido_subtotal decimal(18,2),
-        detalle_factura_numero bigint,
-        detalle_factura_precio decimal(18,2),
-        detalle_factura_cantidad decimal(18,0),
-        detalle_factura_subtotal decimal(18,2)
-    )
-
     INSERT INTO JOIN_FORCES.detalles_temporales (
         detalle_pedido_numero,
         detalle_pedido_sillon,
@@ -795,7 +803,12 @@ BEGIN
         p.Pedido_Numero IS NOT NULL AND
         p.Sillon_Codigo IS NOT NULL AND
         f.Factura_Numero IS NOT NULL;
+END
+GO
 
+CREATE PROCEDURE JOIN_FORCES.migrar_detalle_pedido
+AS
+BEGIN    
     INSERT INTO JOIN_FORCES.detalle_pedido (
         id,
         pedido_numero,
@@ -811,9 +824,14 @@ BEGIN
         detalle_pedido_cantidad,
         detalle_pedido_precio,
         detalle_pedido_subtotal
-    FROM JOIN_FORCES.detalles_temporales;
+    FROM JOIN_FORCES.detalles_temporales
+END
+GO
 
-    INSERT INTO JOIN_FORCES.detalle_factura (
+CREATE PROCEDURE JOIN_FORCES.migrar_detalle_factura
+AS
+BEGIN
+INSERT INTO JOIN_FORCES.detalle_factura (
         factura_numero,
         detalle_pedido_id,
         cantidad,
@@ -828,7 +846,12 @@ BEGIN
         dt.detalle_factura_subtotal
     FROM JOIN_FORCES.detalles_temporales dt
     WHERE dt.detalle_factura_numero IS NOT NULL
+END
+GO
 
+CREATE PROCEDURE JOIN_FORCES.migrar_compra_detalle
+AS
+BEGIN
     INSERT INTO JOIN_FORCES.compra_detalle (compra_numero, material_id, subtotal, precio_unitario, cantidad)
     SELECT DISTINCT
         m.Compra_Numero,
@@ -865,18 +888,25 @@ BEGIN
     EXEC JOIN_FORCES.migrar_material
     EXEC JOIN_FORCES.migrar_compra
     EXEC JOIN_FORCES.migrar_pedido
-    EXEC JOIN_FORCES.migrar_modelo;
-    EXEC JOIN_FORCES.migrar_medida;
-    EXEC JOIN_FORCES.migrar_modelo_medida;
-    EXEC JOIN_FORCES.migrar_sillon;
-    EXEC JOIN_FORCES.migrar_sillon_material;
-    EXEC JOIN_FORCES.migrar_factura;
-    EXEC JOIN_FORCES.migrar_cancelacion_pedido;
-    EXEC JOIN_FORCES.migrar_detalles;
-    EXEC JOIN_FORCES.migrar_envio;
+    EXEC JOIN_FORCES.migrar_modelo
+    EXEC JOIN_FORCES.migrar_medida
+    EXEC JOIN_FORCES.migrar_modelo_medida
+    EXEC JOIN_FORCES.migrar_sillon
+    EXEC JOIN_FORCES.migrar_sillon_material
+    EXEC JOIN_FORCES.migrar_factura
+    EXEC JOIN_FORCES.migrar_cancelacion_pedido
+    EXEC JOIN_FORCES.migrar_detalles_temporales
+    EXEC JOIN_FORCES.migrar_detalle_pedido
+    EXEC JOIN_FORCES.migrar_detalle_factura
+    EXEC JOIN_FORCES.migrar_compra_detalle
+    EXEC JOIN_FORCES.migrar_envio
 END
 GO
 
 EXEC JOIN_FORCES.migrar_datos
 GO
 
+DROP PROCEDURE JOIN_FORCES.migrar_detalles_temporales
+GO
+DROP TABLE JOIN_FORCES.detalles_temporales
+GO
