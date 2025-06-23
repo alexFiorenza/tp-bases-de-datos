@@ -418,3 +418,63 @@ GO
 
 EXEC JOIN_FORCES.migrar_bi
 GO
+
+
+
+
+
+-- 7. Promedio de Compras: importe promedio de compras por mes.
+CREATE OR ALTER VIEW JOIN_FORCES.V_PROMEDIO_COMPRAS
+AS
+SELECT 
+    t.tiempo_anio,
+    t.tiempo_mes,
+    c.sucursal_id,
+    AVG(c.subtotal) AS promedio_compras
+FROM JOIN_FORCES.BI_HECHO_COMPRAS c
+JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON c.tiempo_id = t.tiempo_id
+GROUP BY t.tiempo_anio, t.tiempo_mes, c.sucursal_id;
+GO
+
+-- 8. Compras por Tipo de Material: Importe total por tipo, sucursal y cuatrimestre
+CREATE OR ALTER VIEW JOIN_FORCES.V_COMPRAS_TIPO_MATERIAL
+AS
+SELECT 
+    t.tiempo_anio,
+    t.tiempo_cuatrimestre,
+    c.sucursal_id,
+    tm.tipo_material,
+    SUM(c.subtotal) AS total_compras
+FROM JOIN_FORCES.BI_HECHO_COMPRAS c
+JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON c.tiempo_id = t.tiempo_id
+JOIN JOIN_FORCES.BI_DIM_TIPO_MATERIAL tm ON c.tipo_mat_id = tm.tipo_mat_id
+GROUP BY t.tiempo_anio, t.tiempo_cuatrimestre, c.sucursal_id, tm.tipo_material;
+GO
+
+-- 9. Porcentaje de cumplimiento de envíos en tiempo por mes
+CREATE OR ALTER VIEW JOIN_FORCES.V_CUMPLIMIENTO_ENVIOS
+AS
+SELECT 
+    t.tiempo_anio,
+    t.tiempo_mes,
+    SUM(e.cantidad_tiempo) * 100.0 / NULLIF(SUM(e.cantidad), 0) AS porcentaje_cumplimiento
+FROM JOIN_FORCES.BI_HECHO_ENVIOS e
+JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON e.tiempo_id = t.tiempo_id
+GROUP BY t.tiempo_anio, t.tiempo_mes;
+GO
+
+-- 10. Localidades que pagan mayor costo de envío (top 3)
+CREATE OR ALTER VIEW JOIN_FORCES.V_LOCALIDADES_COSTO_ENVIO
+AS
+WITH PromedioCosto AS (
+    SELECT 
+        u.ubicacion_localidad,
+        AVG(e.costo_total / NULLIF(e.cantidad, 0)) AS costo_promedio_envio
+    FROM JOIN_FORCES.BI_HECHO_ENVIOS e
+    JOIN JOIN_FORCES.BI_DIM_UBICACION u ON e.ubicacion_id = u.ubicacion_id
+    GROUP BY u.ubicacion_localidad
+)
+SELECT TOP 3 *
+FROM PromedioCosto
+ORDER BY costo_promedio_envio DESC;
+GO
