@@ -301,16 +301,16 @@ GO
 -- Esta tabla la creo solo para poder hacer mas comodo las migraciones, por eso no esta en el DER.
 -- Al terminar los procedures se elimina completamente.
 CREATE TABLE JOIN_FORCES.detalles_temporales (
-        detalle_pedido_codigo bigint IDENTITY(1,1),
-        detalle_pedido_numero decimal(18,0),
         detalle_pedido_sillon bigint,
-        detalle_pedido_cantidad bigint,
-        detalle_pedido_precio decimal(18,2),
         detalle_pedido_subtotal decimal(18,2),
-        detalle_factura_numero bigint,
-        detalle_factura_precio decimal(18,2),
+        detalle_pedido_cantidad bigint,
+        detalle_pedido_numero decimal(18,0),
+        detalle_pedido_precio decimal(18,2),
         detalle_factura_cantidad decimal(18,0),
-        detalle_factura_subtotal decimal(18,2)
+        detalle_factura_numero bigint,
+        detalle_factura_subtotal decimal(18,2),
+        detalle_factura_precio decimal(18,2),
+        detalle_pedido_codigo bigint IDENTITY(1,1) PRIMARY KEY
 )
 GO
 

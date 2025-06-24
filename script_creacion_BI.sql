@@ -38,6 +38,11 @@ IF OBJECT_ID('JOIN_FORCES.migrar_bi', 'P') IS NOT NULL DROP PROCEDURE JOIN_FORCE
 
 --- DROP DE VISTAS ---
 IF OBJECT_ID('JOIN_FORCES.V_GANANCIAS_MES_SUCURSAL', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_GANANCIAS_MES_SUCURSAL;
+IF OBJECT_ID('JOIN_FORCES.V_FACTURA_PROMEDIO_MENSUAL', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_FACTURA_PROMEDIO_MENSUAL;
+IF OBJECT_ID('JOIN_FORCES.V_RENDIMIENTO_MODELOS', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_RENDIMIENTO_MODELOS;
+IF OBJECT_ID('JOIN_FORCES.V_VOLUMEN_PEDIDOS', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_VOLUMEN_PEDIDOS;
+IF OBJECT_ID('JOIN_FORCES.V_CONVERSION_PEDIDOS', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_CONVERSION_PEDIDOS;
+IF OBJECT_ID('JOIN_FORCES.V_TIEMPO_PROMEDIO_FABRICACION', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_TIEMPO_PROMEDIO_FABRICACION;
 
 ----- TABLAS DIMENSIONES -----
 CREATE TABLE JOIN_FORCES.BI_DIM_TIEMPO (
@@ -414,6 +419,110 @@ FROM JOIN_FORCES.BI_HECHO_FACTURACION AS f
 JOIN JOIN_FORCES.BI_HECHO_COMPRAS AS c ON f.sucursal_id = c.sucursal_id AND f.tiempo_id = c.tiempo_id
 JOIN JOIN_FORCES.BI_DIM_TIEMPO AS t ON f.tiempo_id = t.tiempo_id 
 GROUP BY  t.tiempo_mes, c.sucursal_id -- POR CADA MES, POR CADA SUCURSAL
+GO
+
+-- 2. Factura promedio mensual: Valor promedio de las facturas (en $) segun la provincia de la sucursal para cada cuatrimestre para cada año. 
+-- Se calcula en función de la sumatoria del importe de las facturas sobre el total de las mismas durante dicho periodo.
+CREATE OR ALTER VIEW JOIN_FORCES.V_FACTURA_PROMEDIO_MENSUAL
+AS
+SELECT 
+    t.tiempo_anio,
+    t.tiempo_cuatrimestre,
+    u.ubicacion_provincia,
+    CONCAT('$ ', SUM(f.subtotal) / NULLIF(SUM(f.cantidad), 0)) AS Factura_Promedio_Mensual
+FROM JOIN_FORCES.BI_HECHO_FACTURACION f
+JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON f.tiempo_id = t.tiempo_id
+JOIN JOIN_FORCES.BI_DIM_SUCURSAL s ON f.sucursal_id = s.sucursal_id
+JOIN JOIN_FORCES.BI_DIM_UBICACION u ON f.ubicacion_id = u.ubicacion_id
+GROUP BY 
+    t.tiempo_anio,
+    t.tiempo_cuatrimestre,
+    u.ubicacion_provincia;
+GO
+
+--3. Rendimiento de modelos: 3 Modelos con mayores ventas para cada  cuatrimestre de cada año segun la localidad de la sucursal y el rango etario de los clientes.
+CREATE OR ALTER VIEW JOIN_FORCES.V_RENDIMIENTO_MODELOS
+AS
+WITH VentasConRanking AS (
+    SELECT 
+        v.modelo_codigo,
+        m.modelo_nombre,
+        t.tiempo_anio,
+        t.tiempo_cuatrimestre,
+        u.ubicacion_localidad,
+        r.rango_descripcion,
+        SUM(v.cantidad_ventas) AS total_ventas,
+        ROW_NUMBER() OVER (
+            PARTITION BY t.tiempo_anio, t.tiempo_cuatrimestre, u.ubicacion_localidad, r.rango_descripcion 
+            ORDER BY SUM(v.cantidad_ventas) DESC
+        ) AS ranking
+    FROM JOIN_FORCES.BI_HECHO_VENTAS v
+    JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON v.tiempo_id = t.tiempo_id
+    JOIN JOIN_FORCES.BI_DIM_MODELO m ON v.modelo_codigo = m.modelo_codigo
+    JOIN JOIN_FORCES.BI_DIM_UBICACION u ON v.ubicacion_id = u.ubicacion_id
+    JOIN JOIN_FORCES.BI_DIM_RANGO_ETARIO r ON v.rango_etario_id = r.rango_id
+    GROUP BY 
+        v.modelo_codigo,
+        m.modelo_nombre,
+        t.tiempo_anio,
+        t.tiempo_cuatrimestre,
+        u.ubicacion_localidad,
+        r.rango_descripcion
+)
+SELECT *
+FROM VentasConRanking
+WHERE ranking <= 3;
+GO
+
+--4. Volumen de pedidos: Cantidad de pedidos registrados por turno, por sucursal según el mes de cada año.
+CREATE OR ALTER VIEW JOIN_FORCES.V_VOLUMEN_PEDIDOS
+AS
+SELECT 
+    t.tiempo_anio,
+    t.tiempo_mes,
+    p.sucursal_id,
+    p.turno_venta_id,
+    SUM(p.cantidad) AS cantidad_pedidos
+FROM JOIN_FORCES.BI_HECHO_PEDIDOS p
+JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON p.tiempo_id = t.tiempo_id
+GROUP BY 
+    t.tiempo_anio,
+    t.tiempo_mes,
+    p.sucursal_id,
+    p.turno_venta_id;
+GO
+
+--5. Conversión de pedidos: Porcentaje de pedidos según estado, por cuatrimestre y sucursal.
+CREATE OR ALTER VIEW JOIN_FORCES.V_CONVERSION_PEDIDOS
+AS
+SELECT 
+    t.tiempo_anio,
+    t.tiempo_cuatrimestre,
+    p.sucursal_id,
+    SUM(p.cantidad_entregados) * 100.0 / NULLIF(SUM(p.cantidad), 0) AS porcentaje_entregados,
+    SUM(p.cantidad_cancelados) * 100.0 / NULLIF(SUM(p.cantidad), 0) AS porcentaje_cancelados
+FROM JOIN_FORCES.BI_HECHO_PEDIDOS p
+JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON p.tiempo_id = t.tiempo_id
+GROUP BY 
+    t.tiempo_anio,
+    t.tiempo_cuatrimestre,
+    p.sucursal_id;
+GO
+
+--6. Tiempo promedio de fabricación: Tiempo promedio que tarda cada sucursal entre que se registra un pedido y registra la factura para el mismo. Por cuatrimestre
+CREATE OR ALTER VIEW JOIN_FORCES.V_TIEMPO_PROMEDIO_FABRICACION
+AS
+SELECT 
+    t.tiempo_anio,
+    t.tiempo_cuatrimestre,
+    p.sucursal_id,
+    CONCAT(FORMAT(SUM(p.tiempo_registro_factura) / SUM(p.cantidad), 'N1'), ' Días') AS tiempo_promedio_fabricacion
+FROM JOIN_FORCES.BI_HECHO_PEDIDOS p
+JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON p.tiempo_id = t.tiempo_id
+GROUP BY 
+    t.tiempo_anio,
+    t.tiempo_cuatrimestre,
+    p.sucursal_id;
 GO
 
 EXEC JOIN_FORCES.migrar_bi
