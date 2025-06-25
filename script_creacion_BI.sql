@@ -43,6 +43,10 @@ IF OBJECT_ID('JOIN_FORCES.V_RENDIMIENTO_MODELOS', 'V') IS NOT NULL DROP VIEW JOI
 IF OBJECT_ID('JOIN_FORCES.V_VOLUMEN_PEDIDOS', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_VOLUMEN_PEDIDOS;
 IF OBJECT_ID('JOIN_FORCES.V_CONVERSION_PEDIDOS', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_CONVERSION_PEDIDOS;
 IF OBJECT_ID('JOIN_FORCES.V_TIEMPO_PROMEDIO_FABRICACION', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_TIEMPO_PROMEDIO_FABRICACION;
+IF OBJECT_ID('JOIN_FORCES.V_PROMEDIO_COMPRAS', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_PROMEDIO_COMPRAS;
+IF OBJECT_ID('JOIN_FORCES.V_COMPRAS_TIPO_MATERIAL', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_COMPRAS_TIPO_MATERIAL;
+IF OBJECT_ID('JOIN_FORCES.V_CUMPLIMIENTO_ENVIOS', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_CUMPLIMIENTO_ENVIOS;
+IF OBJECT_ID('JOIN_FORCES.V_LOCALIDADES_COSTO_ENVIO', 'V') IS NOT NULL DROP VIEW JOIN_FORCES.V_LOCALIDADES_COSTO_ENVIO;
 
 ----- TABLAS DIMENSIONES -----
 CREATE TABLE JOIN_FORCES.BI_DIM_TIEMPO (
@@ -376,10 +380,9 @@ BEGIN
     ) 
     FROM JOIN_FORCES.envio e
     INNER JOIN JOIN_FORCES.factura f ON f.numero = e.factura_id
-    INNER JOIN JOIN_FORCES.cliente c ON c.dni = f.cliente_dni
+    INNER JOIN JOIN_FORCES.cliente c ON c.dni = f.cliente_dni 
     INNER JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON YEAR(e.fecha) = t.tiempo_anio AND MONTH(e.fecha) = t.tiempo_mes
-    INNER JOIN JOIN_FORCES.SUCURSAL s ON s.id = f.sucursal_id
-    INNER JOIN JOIN_FORCES.direccion d ON s.direccion_id = d.id
+    INNER JOIN JOIN_FORCES.direccion d ON c.direccion_id = d.id
     INNER JOIN JOIN_FORCES.localidad l ON d.localidad_id = l.id
     INNER JOIN JOIN_FORCES.provincia p ON l.provincia_id = p.id
     INNER JOIN JOIN_FORCES.BI_DIM_UBICACION ubi ON ubi.ubicacion_provincia = p.nombre AND ubi.ubicacion_localidad = l.nombre
@@ -526,4 +529,60 @@ GROUP BY
 GO
 
 EXEC JOIN_FORCES.migrar_bi
+GO
+
+-- 7. Promedio de Compras: importe promedio de compras por mes.
+CREATE OR ALTER VIEW JOIN_FORCES.V_PROMEDIO_COMPRAS
+AS
+SELECT 
+    t.tiempo_anio,
+    t.tiempo_mes,
+    c.sucursal_id,
+    CONCAT('$ ', SUM(c.subtotal) / SUM(c.cantidad)) AS promedio_compras_mensual
+FROM JOIN_FORCES.BI_HECHO_COMPRAS c
+JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON c.tiempo_id = t.tiempo_id
+GROUP BY t.tiempo_anio, t.tiempo_mes, c.sucursal_id;
+GO
+
+-- 8. Compras por Tipo de Material: Importe total gastado por tipo de material, sucursal y cuatrimestre
+CREATE OR ALTER VIEW JOIN_FORCES.V_COMPRAS_TIPO_MATERIAL
+AS
+SELECT 
+    t.tiempo_cuatrimestre,
+    c.sucursal_id,
+    tm.tipo_material,
+    CONCAT('$ ', SUM(c.subtotal)) AS total_compras
+FROM JOIN_FORCES.BI_HECHO_COMPRAS c
+JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON c.tiempo_id = t.tiempo_id
+JOIN JOIN_FORCES.BI_DIM_TIPO_MATERIAL tm ON c.tipo_mat_id = tm.tipo_mat_id
+GROUP BY t.tiempo_cuatrimestre, c.sucursal_id, tm.tipo_material;
+GO
+
+
+-- 9. Porcentaje de cumplimiento de envíos: en los tiempos programados por mes.
+--- Se calcula teniendo en cuenta los envios cumplidos en fecha sobre el total de envios para el periodo.
+CREATE OR ALTER VIEW JOIN_FORCES.V_CUMPLIMIENTO_ENVIOS
+AS
+SELECT 
+    t.tiempo_mes,
+    SUM(e.cantidad_tiempo) * 100.0 / NULLIF(SUM(e.cantidad), 0) AS porcentaje_cumplimiento
+FROM JOIN_FORCES.BI_HECHO_ENVIOS e
+JOIN JOIN_FORCES.BI_DIM_TIEMPO t ON e.tiempo_id = t.tiempo_id
+GROUP BY t.tiempo_mes;
+GO
+
+-- 10. Localidades que pagan mayor costo de envío: Las 3 localidades (tomando la localidad del cliente) con mayor promedio de costo de envio (total).
+CREATE OR ALTER VIEW JOIN_FORCES.V_LOCALIDADES_COSTO_ENVIO
+AS
+WITH PromedioCosto AS (
+    SELECT 
+        u.ubicacion_localidad,
+        SUM(e.costo_total) / SUM(e.cantidad) AS costo_promedio_envio
+    FROM JOIN_FORCES.BI_HECHO_ENVIOS e
+    JOIN JOIN_FORCES.BI_DIM_UBICACION u ON e.ubicacion_id = u.ubicacion_id
+    GROUP BY u.ubicacion_localidad
+)
+SELECT TOP 3 *
+FROM PromedioCosto
+ORDER BY costo_promedio_envio DESC;
 GO
